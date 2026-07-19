@@ -1,0 +1,65 @@
+# Contributing to AIStat
+
+Thank you for your interest in contributing to AIStat. This document outlines the guidelines and workflow for submitting contributions, reporting bugs, and proposing architectural enhancements.
+
+---
+
+## Code of Conduct
+
+All contributors and maintainers are expected to maintain a professional, collaborative, and inclusive environment. Please ensure all communication remains constructive, respectful, and focused on technical excellence.
+
+---
+
+## Development Setup
+
+### Prerequisites
+- Google Chrome (version 114 or higher) or any Chromium-based browser supporting Manifest V3
+- Git 2.30+
+
+### Loading the Extension Locally
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Sreeram5678/ai_stat.git
+   cd ai_stat
+   ```
+2. Open Google Chrome and navigate to `chrome://extensions`.
+3. Enable **Developer mode** using the toggle in the upper-right corner.
+4. Click **Load unpacked** and select the root `ai_stat` project directory.
+5. Verify that the AIStat extension appears in your installed extensions list and pins to the toolbar.
+
+---
+
+## Branching Strategy & Workflow
+
+1. Fork the repository and create your branch from `main`.
+2. Name your branch using standard prefixes:
+   - `feature/<description>` for new capabilities
+   - `fix/<description>` for bug resolutions
+   - `docs/<description>` for documentation updates
+   - `refactor/<description>` for internal code improvements
+3. Ensure your commits follow the Conventional Commits specification:
+   - `feat(scope): add new feature`
+   - `fix(scope): resolve bug`
+   - `docs(scope): update documentation`
+   - `chore(scope): maintain build or tools`
+4. Open a Pull Request against the `main` branch with a clear description of your changes and test coverage.
+
+---
+
+## Privacy and Architectural Invariants
+
+When submitting code changes, the following core invariants must be strictly preserved:
+
+1. **Zero Remote Telemetry**: No user prompts, chat messages, or analytics metrics may ever leave the client. All storage operations must target `chrome.storage.local`.
+2. **Execution Context Isolation**: Heavy interception logic must run in the top window context only (`window.self === window.top`) to avoid duplicate event capture in embedded iframes.
+3. **No External Network Dependencies**: Extension assets (scripts, styles, icons) must be self-contained within the extension bundle without relying on third-party CDNs.
+
+---
+
+## Testing Changes
+
+Before opening a pull request:
+1. Test prompt detection across all supported platforms (ChatGPT, Claude, Gemini, DeepSeek, Perplexity).
+2. Validate that the service worker badge updates correctly without throwing background alarm exceptions.
+3. Verify that the analytics dashboard renders all time filters (Today, 7 Days, 30 Days, All-Time) without console errors.
+4. Test data export (both CSV and JSON) to ensure schema consistency.
