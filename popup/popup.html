@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIStat</title>
+
+  <!-- Google Fonts: DM Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+
+    <!-- ── Header ── -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-icon">
+          <img src="../icons/icon-48.png" alt="AIStat Logo" class="brand-img">
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">AIStat</span>
+          <span class="brand-subtitle">AI Usage Tracker</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="streak-badge" id="streak-badge" title="Daily Active Streak">
+          <i data-lucide="flame" class="icon-xs"></i>
+          <span id="streak-count">0</span>d
+        </div>
+        <button id="btn-open-dashboard-icon" class="icon-btn" title="Open Full Dashboard">
+          <i data-lucide="external-link" class="icon-sm"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- ── Main Content ── -->
+    <main class="content">
+
+      <!-- Today's Count Hero -->
+      <section class="score-card">
+        <div class="score-header">
+          <span class="card-label">Messages Today</span>
+          <span class="tier-pill tier-medium" id="today-status-pill">
+            <i data-lucide="moon" class="icon-xs"></i> No messages yet
+          </span>
+        </div>
+        <div class="score-display">
+          <div class="score-number-wrap">
+            <span class="score-value" id="today-count-val">0</span>
+            <span class="score-max">msgs</span>
+          </div>
+        </div>
+        <div class="coach-tip" id="stats-summary-text">
+          Start prompting on ChatGPT, Claude, Gemini, or Perplexity to track your usage.
+        </div>
+      </section>
+
+      <!-- Key Metrics Grid -->
+      <div class="metrics-grid">
+        <div class="metric-box">
+          <div class="metric-icon time-icon">
+            <i data-lucide="calendar" class="icon-md"></i>
+          </div>
+          <div class="metric-info">
+            <span class="metric-label">This Week</span>
+            <span class="metric-val" id="week-count-val">0</span>
+            <span class="metric-sub">messages</span>
+          </div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-icon count-icon">
+            <i data-lucide="infinity" class="icon-md"></i>
+          </div>
+          <div class="metric-info">
+            <span class="metric-label">All Time</span>
+            <span class="metric-val" id="alltime-count-val">0</span>
+            <span class="metric-sub">messages</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7-Day Activity Mini Bar Chart -->
+      <section class="mini-chart-section">
+        <div class="section-title-wrap">
+          <span class="section-title">Past 7 Days</span>
+          <span class="section-sub" id="week-total-sub">0 total</span>
+        </div>
+        <div class="mini-bars-container" id="mini-bars-container">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- Platform Breakdown -->
+      <section class="tier-ratio-section">
+        <div class="tier-ratio-header">
+          <span>By Platform (this week)</span>
+          <span id="platform-total-count">0 total</span>
+        </div>
+        <div id="platform-bars-list">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ── Footer / CTA ── -->
+    <footer class="footer">
+      <button id="btn-open-dashboard" class="btn-primary">
+        <span>Open Full Analytics Dashboard</span>
+        <i data-lucide="chevron-right" class="icon-sm"></i>
+      </button>
+    </footer>
+
+  </div>
+
+  <!-- Lucide Icons (Bundled) -->
+  <script src="../shared/lucide.min.js"></script>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
