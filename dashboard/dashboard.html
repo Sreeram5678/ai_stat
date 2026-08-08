@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIStat — AI Usage Analytics</title>
+
+  <!-- Google Fonts: DM Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- ── Sidebar Navigation ── -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">
+          <img src="../icons/icon-48.png" alt="AIStat Logo" class="brand-logo-img">
+        </div>
+        <div class="brand-titles">
+          <h1>AIStat</h1>
+          <span class="tagline">AI Usage Tracker</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="overview">
+          <i data-lucide="bar-chart-2" class="nav-icon-svg"></i> Overview &amp; Trends
+        </button>
+        <button class="nav-item" data-tab="history">
+          <i data-lucide="scroll-text" class="nav-icon-svg"></i> Daily History
+        </button>
+        <button class="nav-item" data-tab="settings">
+          <i data-lucide="settings-2" class="nav-icon-svg"></i> Settings &amp; Export
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="privacy-badge">
+          <i data-lucide="lock" class="icon-xs"></i>
+          <span>100% Local &amp; Private</span>
+        </div>
+        <span class="version-text">v2.0.0 · Manifest V3</span>
+      </div>
+    </aside>
+
+    <!-- ── Main Content Area ── -->
+    <main class="main-viewport">
+
+      <!-- Top Header Bar -->
+      <header class="top-bar">
+        <div class="page-title-wrap">
+          <h2 id="page-heading">Usage Overview</h2>
+          <p id="page-subheading">How many messages you have sent to AI assistants.</p>
+        </div>
+
+        <div class="top-controls">
+          <div class="date-filter-group">
+            <button class="filter-btn active" data-period="7d">Last 7 Days</button>
+            <button class="filter-btn" data-period="30d">Last 30 Days</button>
+            <button class="filter-btn" data-period="all">All Time</button>
+          </div>
+          <button id="btn-refresh" class="secondary-btn" title="Refresh Telemetry">
+            <i data-lucide="refresh-cw" class="icon-sm"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- ══ TAB 1: OVERVIEW ══ -->
+      <div id="tab-overview" class="tab-pane active">
+
+        <!-- Hero KPI Cards -->
+        <section class="kpi-grid">
+          <div class="kpi-card accent-indigo">
+            <div class="kpi-header">
+              <span class="kpi-title">Today</span>
+              <i data-lucide="sun" class="kpi-icon-svg"></i>
+            </div>
+            <div class="kpi-main">
+              <span class="kpi-val" id="kpi-today">0</span>
+              <span class="kpi-unit">messages</span>
+            </div>
+            <div class="kpi-footer">
+              <span id="kpi-streak-sub">0 day streak</span>
+            </div>
+          </div>
+
+          <div class="kpi-card accent-cyan">
+            <div class="kpi-header">
+              <span class="kpi-title">This Week</span>
+              <i data-lucide="calendar" class="kpi-icon-svg"></i>
+            </div>
+            <div class="kpi-main">
+              <span class="kpi-val" id="kpi-week">0</span>
+              <span class="kpi-unit">messages</span>
+            </div>
+            <div class="kpi-footer">
+              <span id="kpi-week-sub">~0/day avg</span>
+            </div>
+          </div>
+
+          <div class="kpi-card accent-emerald">
+            <div class="kpi-header">
+              <span class="kpi-title">This Month</span>
+              <i data-lucide="calendar-days" class="kpi-icon-svg"></i>
+            </div>
+            <div class="kpi-main">
+              <span class="kpi-val" id="kpi-month">0</span>
+              <span class="kpi-unit">messages</span>
+            </div>
+            <div class="kpi-footer">
+              <span id="kpi-month-sub">current month</span>
+            </div>
+          </div>
+
+          <div class="kpi-card accent-amber">
+            <div class="kpi-header">
+              <span class="kpi-title">All Time</span>
+              <i data-lucide="trophy" class="kpi-icon-svg"></i>
+            </div>
+            <div class="kpi-main">
+              <span class="kpi-val" id="kpi-alltime">0</span>
+              <span class="kpi-unit">messages</span>
+            </div>
+            <div class="kpi-footer">
+              <span id="kpi-top-platform">— most used</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Charts Section -->
+        <div class="dashboard-grid-2col">
+          <div class="card chart-card">
+            <div class="card-header">
+              <div>
+                <h3>Daily Message Count</h3>
+                <span class="card-subtitle">Number of prompts sent each day</span>
+              </div>
+            </div>
+            <div class="chart-container" id="activity-chart-container"></div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="card-header">
+              <div>
+                <h3>Platform Breakdown</h3>
+                <span class="card-subtitle">Share of messages across AI assistants</span>
+              </div>
+            </div>
+            <div class="chart-container" id="platform-chart-container"></div>
+          </div>
+        </div>
+
+        <!-- Hourly Heatmap -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Peak AI Hours</h3>
+              <span class="card-subtitle">What time of day you use AI most (today)</span>
+            </div>
+          </div>
+          <div class="heatmap-container" id="hourly-heatmap-container"></div>
+        </div>
+      </div>
+
+      <!-- ══ TAB 2: DAILY HISTORY ══ -->
+      <div id="tab-history" class="tab-pane">
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <h3>Daily Usage History</h3>
+              <span class="card-subtitle">Message counts broken down by day and platform</span>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table" id="history-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Total</th>
+                  <th>ChatGPT</th>
+                  <th>Claude</th>
+                  <th>Gemini</th>
+                  <th>DeepSeek</th>
+                  <th>Perplexity</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TAB 3: SETTINGS & EXPORT ══ -->
+      <div id="tab-settings" class="tab-pane">
+        <div class="dashboard-grid-2col">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Preferences</h3>
+                <span class="card-subtitle">Configure extension icon behavior</span>
+              </div>
+            </div>
+            <div class="settings-form">
+              <div class="setting-row">
+                <div>
+                  <label class="setting-label">Extension Badge Display</label>
+                  <p class="setting-desc">Show today's message count directly on the extension icon.</p>
+                </div>
+                <select id="setting-badge" class="select-input">
+                  <option value="message_count">Today's Message Count (e.g. 18)</option>
+                  <option value="none">Disabled (No Badge)</option>
+                </select>
+              </div>
+
+              <button id="btn-save-settings" class="btn-primary">Save Preferences</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Data Export &amp; Reset</h3>
+                <span class="card-subtitle">Export your personal usage data or clear history</span>
+              </div>
+            </div>
+            <div class="export-actions">
+              <p class="export-desc">All stats are stored 100% locally on your computer.</p>
+
+              <div class="export-buttons-group">
+                <button id="btn-export-json" class="secondary-btn">
+                  <i data-lucide="download" class="icon-sm"></i>
+                  <span>Export Full Data (JSON)</span>
+                </button>
+                <button id="btn-export-csv" class="secondary-btn">
+                  <i data-lucide="table-2" class="icon-sm"></i>
+                  <span>Export Daily Stats (CSV)</span>
+                </button>
+              </div>
+
+              <hr class="divider">
+
+              <div class="danger-zone">
+                <h4>Reset Telemetry</h4>
+                <p>Permanently delete all locally stored usage logs.</p>
+                <button id="btn-reset-data" class="danger-btn">
+                  <i data-lucide="trash-2" class="icon-sm"></i>
+                  Clear All Local Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Lucide Icons (Bundled) -->
+  <script src="../shared/lucide.min.js"></script>
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>
