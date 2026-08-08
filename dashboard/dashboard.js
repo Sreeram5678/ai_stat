@@ -4,6 +4,7 @@
 import { StatsStorage } from '../shared/storage.js';
 import { PLATFORMS } from '../shared/constants.js';
 
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('[AIStat] Dashboard initialized.');
-});
+async function handleExportJSON() {
+  const jsonStr = await StatsStorage.exportJSON();
+  console.log('Exporting JSON:', jsonStr.length);
+}
