@@ -1,0 +1,60 @@
+name: Validation and Manifest Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate manifest.json schema and JSON syntax
+        run: |
+          node -e "
+            const fs = require('fs');
+            const manifest = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
+            if (manifest.manifest_version !== 3) {
+              console.error('Error: manifest_version must be 3');
+              process.exit(1);
+            }
+            if (!manifest.name || !manifest.version) {
+              console.error('Error: missing name or version in manifest.json');
+              process.exit(1);
+            }
+            console.log('Manifest V3 validation passed for ' + manifest.name + ' v' + manifest.version);
+          "
+
+      - name: Verify asset paths exist
+        run: |
+          node -e "
+            const fs = require('fs');
+            const manifest = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
+            const filesToCheck = [
+              manifest.action?.default_popup,
+              manifest.background?.service_worker,
+              ...(manifest.icons ? Object.values(manifest.icons) : []),
+              ...(manifest.content_scripts ? manifest.content_scripts.flatMap(c => c.js || []) : [])
+            ].filter(Boolean);
+
+            let missing = 0;
+            for (const file of filesToCheck) {
+              if (!fs.existsSync(file)) {
+                console.error('Missing file declared in manifest:', file);
+                missing++;
+              }
+            }
+            if (missing > 0) {
+              process.exit(1);
+            }
+            console.log('All ' + filesToCheck.length + ' declared manifest assets verified.');
+          "
