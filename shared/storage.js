@@ -277,3 +277,5 @@ export class StatsStorage {
     await chrome.storage.local.set({ settings });
   }
 }
+
+// Storage quota safety margin
