@@ -1,0 +1,27 @@
+{
+  "name": "ai-stat",
+  "version": "2.0.0",
+  "description": "Local-first AI usage tracker and analytics Chrome extension (Manifest V3)",
+  "private": true,
+  "scripts": {
+    "validate": "node -e \"const fs=require('fs');const m=JSON.parse(fs.readFileSync('./manifest.json','utf8'));if(m.manifest_version!==3)process.exit(1);console.log('Manifest V3 valid');\"",
+    "test": "npm run validate"
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "ai-analytics",
+    "chatgpt",
+    "claude",
+    "gemini",
+    "deepseek",
+    "perplexity",
+    "privacy-first"
+  ],
+  "author": "Sreeram Lagisetty <sreeram.lagisetty@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sreeram5678/ai_stat.git"
+  }
+}
