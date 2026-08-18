@@ -11,6 +11,12 @@
 
 ---
 
+## Dashboard Preview
+
+![AIStat Analytics Dashboard](docs/assets/dashboard-preview.png)
+
+---
+
 ## Architecture Overview
 
 AIStat operates using a multi-tiered execution model that strictly separates content inspection, event arbitration, persistent storage, and analytical presentation.
