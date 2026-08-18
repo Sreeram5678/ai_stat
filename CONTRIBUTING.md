@@ -61,7 +61,7 @@ When submitting code changes, the following core invariants must be strictly pre
 Adding a new AI conversation platform is one of the most accessible and impactful ways to contribute to AIStat. The integration requires updating three files:
 
 ### Step 1: Declare Host Permissions & Match Patterns
-In [`manifest.json`](file:///Users/sreeramlagisetty/Desktop/ai_stat/manifest.json), add the platform domain to both `host_permissions` and `content_scripts.matches`:
+In [`manifest.json`](./manifest.json), add the platform domain to both `host_permissions` and `content_scripts.matches`:
 
 ```json
 "host_permissions": [
@@ -80,7 +80,7 @@ In [`manifest.json`](file:///Users/sreeramlagisetty/Desktop/ai_stat/manifest.jso
 ```
 
 ### Step 2: Register Platform Taxonomy
-In [`shared/constants.js`](file:///Users/sreeramlagisetty/Desktop/ai_stat/shared/constants.js), register the platform identifier, brand display name, and color theme tokens:
+In [`shared/constants.js`](./shared/constants.js), register the platform identifier, brand display name, and color theme tokens:
 
 ```javascript
 mistral: {
@@ -93,7 +93,7 @@ mistral: {
 ```
 
 ### Step 3: Configure Network Interception Endpoint
-In [`content-scripts/network-interceptor.js`](file:///Users/sreeramlagisetty/Desktop/ai_stat/content-scripts/network-interceptor.js):
+In [`content-scripts/network-interceptor.js`](./content-scripts/network-interceptor.js):
 1. Add domain matching inside the self-executing function:
    ```javascript
    } else if (host.includes('mistral.ai')) {

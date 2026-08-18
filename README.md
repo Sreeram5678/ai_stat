@@ -1,7 +1,7 @@
 # AIStat
 
-[![Manifest V3](https://img.shields.io/badge/Manifest-V3-388e3c?style=flat-square)](file:///Users/sreeramlagisetty/Desktop/ai_stat/manifest.json)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](file:///Users/sreeramlagisetty/Desktop/ai_stat/LICENSE)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-388e3c?style=flat-square)](./manifest.json)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](./LICENSE)
 [![CI Validation](https://img.shields.io/badge/CI-Passing-brightgreen?style=flat-square)](https://github.com/Sreeram5678/ai_stat/actions)
 [![Platforms](https://img.shields.io/badge/Platforms-5%20AI%20Engines-informational?style=flat-square)](#supported-ai-platforms)
 [![Privacy](https://img.shields.io/badge/Telemetry-100%25%20Local--First-6366f1?style=flat-square)](#privacy--security-boundary)
@@ -289,12 +289,12 @@ Date,Total Messages,ChatGPT,Claude,Gemini,DeepSeek,Perplexity
 
 Contributions to AIStat are welcome. Whether you want to add support for new AI platforms, build visual themes, or enhance data exporters:
 
-- **Quick Start Guide**: Read [How to Add a New AI Platform](file:///Users/sreeramlagisetty/Desktop/ai_stat/CONTRIBUTING.md#how-to-add-support-for-a-new-ai-platform-step-by-step-tutorial) for a 3-step walkthrough.
-- **Contribution Workflow**: Check [CONTRIBUTING.md](file:///Users/sreeramlagisetty/Desktop/ai_stat/CONTRIBUTING.md) for full branch naming, code standards, and verification guidelines.
+- **Quick Start Guide**: Read [How to Add a New AI Platform](./CONTRIBUTING.md#how-to-add-support-for-a-new-ai-platform-step-by-step-tutorial) for a 3-step walkthrough.
+- **Contribution Workflow**: Check [CONTRIBUTING.md](./CONTRIBUTING.md) for full branch naming, code standards, and verification guidelines.
 - **Good First Issues**: Explore open beginner-friendly issues on the [Issue Tracker](https://github.com/Sreeram5678/ai_stat/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ---
 
 ## License
 
-This project is licensed under the terms of the [MIT License](file:///Users/sreeramlagisetty/Desktop/ai_stat/LICENSE).
+This project is licensed under the terms of the [MIT License](./LICENSE).
