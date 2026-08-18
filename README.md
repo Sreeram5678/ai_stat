@@ -281,7 +281,11 @@ Date,Total Messages,ChatGPT,Claude,Gemini,DeepSeek,Perplexity
 
 ## Contributing
 
-Contributions to AIStat are welcome. Please read [CONTRIBUTING.md](file:///Users/sreeramlagisetty/Desktop/ai_stat/CONTRIBUTING.md) for detailed guidelines on code standards, branch naming conventions, and the pull request submission process.
+Contributions to AIStat are welcome. Whether you want to add support for new AI platforms, build visual themes, or enhance data exporters:
+
+- **Quick Start Guide**: Read [How to Add a New AI Platform](file:///Users/sreeramlagisetty/Desktop/ai_stat/CONTRIBUTING.md#how-to-add-support-for-a-new-ai-platform-step-by-step-tutorial) for a 3-step walkthrough.
+- **Contribution Workflow**: Check [CONTRIBUTING.md](file:///Users/sreeramlagisetty/Desktop/ai_stat/CONTRIBUTING.md) for full branch naming, code standards, and verification guidelines.
+- **Good First Issues**: Explore open beginner-friendly issues on the [Issue Tracker](https://github.com/Sreeram5678/ai_stat/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ---
 
