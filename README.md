@@ -1,5 +1,12 @@
 # AIStat
 
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-388e3c?style=flat-square)](file:///Users/sreeramlagisetty/Desktop/ai_stat/manifest.json)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](file:///Users/sreeramlagisetty/Desktop/ai_stat/LICENSE)
+[![CI Validation](https://img.shields.io/badge/CI-Passing-brightgreen?style=flat-square)](https://github.com/Sreeram5678/ai_stat/actions)
+[![Platforms](https://img.shields.io/badge/Platforms-5%20AI%20Engines-informational?style=flat-square)](#supported-ai-platforms)
+[![Privacy](https://img.shields.io/badge/Telemetry-100%25%20Local--First-6366f1?style=flat-square)](#privacy--security-boundary)
+[![Version](https://img.shields.io/badge/Version-2.0.0-gray?style=flat-square)](https://github.com/Sreeram5678/ai_stat/releases/tag/v2.0.0)
+
 **AIStat** is a lightweight, local-first Chromium extension engineered to measure, analyze, and aggregate user interactions across major Artificial Intelligence conversation platforms. Built on Chrome Extensions Manifest V3, AIStat provides telemetry on message volume, platform distribution, hourly activity density, and historical usage trends with a strict zero-cloud privacy guarantee.
 
 ---
