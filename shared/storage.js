@@ -30,7 +30,7 @@ export class StatsStorage {
 
   static async getSettings() {
     const { settings } = await chrome.storage.local.get('settings');
-    return { badgeDisplay: 'message_count', ...(settings || {}) };
+    return { badgeDisplay: 'message_count', theme: 'light', ...(settings || {}) };
   }
 
   static async updateSettings(newSettings) {
