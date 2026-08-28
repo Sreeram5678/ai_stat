@@ -3,6 +3,8 @@
  * Persists all metrics locally in chrome.storage.local.
  */
 
+import { globalCache, retryWithBackoff, estimateObjectSize } from './cache-manager.js';
+
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 let _writeQueue = Promise.resolve();
 
@@ -603,9 +605,87 @@ export class StatsStorage {
    */
   static async clearAllData() {
     const settings = await this.getSettings();
+    globalCache.clear();
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       await chrome.storage.local.clear();
       await chrome.storage.local.set({ settings });
     }
+  }
+
+  /**
+   * Retrieves estimated or actual storage quota usage.
+   */
+  static async getStorageUsage() {
+    let bytesInUse = 0;
+    const quotaBytes = 5242880; // 5 MB standard chrome.storage.local limit
+
+    if (typeof chrome !== 'undefined' && chrome.storage?.local?.getBytesInUse) {
+      try {
+        bytesInUse = await chrome.storage.local.getBytesInUse(null);
+      } catch (err) {
+        // Fallback estimation
+        const dailyLogs = await this.getDailyLogs();
+        const settings = await this.getSettings();
+        bytesInUse = estimateObjectSize({ dailyLogs, settings });
+      }
+    } else {
+      const dailyLogs = await this.getDailyLogs();
+      const settings = await this.getSettings();
+      bytesInUse = estimateObjectSize({ dailyLogs, settings });
+    }
+
+    const percentUsed = Number(((bytesInUse / quotaBytes) * 100).toFixed(2));
+    const formattedUsage = bytesInUse < 1024
+      ? `${bytesInUse} B`
+      : bytesInUse < 1048576
+        ? `${(bytesInUse / 1024).toFixed(1)} KB`
+        : `${(bytesInUse / 1048576).toFixed(2)} MB`;
+
+    return {
+      bytesInUse,
+      quotaBytes,
+      percentUsed,
+      formattedUsage,
+      isNearQuota: percentUsed >= 80
+    };
+  }
+
+  /**
+   * Archives daily log records older than retentionDays into aggregated historical summaries.
+   */
+  static async archiveOldLogs(retentionDays = 90) {
+    const dailyLogs = await this.getDailyLogs();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+    const cutoffKey = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
+
+    const retainedLogs = {};
+    let archivedMessagesCount = 0;
+    const archivedPlatforms = {};
+
+    Object.entries(dailyLogs).forEach(([dateKey, day]) => {
+      if (dateKey >= cutoffKey) {
+        retainedLogs[dateKey] = day;
+      } else {
+        archivedMessagesCount += this.sanitizeCount(day.messagesCount);
+        if (day.platforms) {
+          Object.entries(day.platforms).forEach(([p, count]) => {
+            archivedPlatforms[p] = (archivedPlatforms[p] || 0) + this.sanitizeCount(count);
+          });
+        }
+      }
+    });
+
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await chrome.storage.local.set({ dailyLogs: retainedLogs });
+    }
+    globalCache.clear();
+
+    return {
+      retainedDays: Object.keys(retainedLogs).length,
+      archivedDaysCount: Object.keys(dailyLogs).length - Object.keys(retainedLogs).length,
+      archivedMessagesCount,
+      archivedPlatforms
+    };
   }
 }

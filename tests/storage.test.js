@@ -346,5 +346,40 @@ describe('StatsStorage', () => {
       const settings = await StatsStorage.getSettings();
       expect(settings.badgeDisplay).toBe('none');
     });
+
+    it('calculates storage quota usage accurately', async () => {
+      await StatsStorage.incrementMessageCount('chatgpt');
+      const usage = await StatsStorage.getStorageUsage();
+
+      expect(usage.bytesInUse).toBeGreaterThan(0);
+      expect(usage.quotaBytes).toBe(5242880);
+      expect(usage.percentUsed).toBeGreaterThanOrEqual(0);
+      expect(typeof usage.formattedUsage).toBe('string');
+      expect(usage.isNearQuota).toBe(false);
+    });
+
+    it('archives old daily logs older than retention period', async () => {
+      const oldDate = '2024-01-01';
+      const recentDate = StatsStorage.getTodayKey();
+
+      await chromeMock.storage.local.set({
+        dailyLogs: {
+          [oldDate]: { date: oldDate, messagesCount: 15, platforms: { chatgpt: 10, claude: 5 } },
+          [recentDate]: { date: recentDate, messagesCount: 5, platforms: { chatgpt: 5 } }
+        }
+      });
+
+      const result = await StatsStorage.archiveOldLogs(90);
+      expect(result.archivedDaysCount).toBe(1);
+      expect(result.archivedMessagesCount).toBe(15);
+      expect(result.archivedPlatforms.chatgpt).toBe(10);
+      expect(result.archivedPlatforms.claude).toBe(5);
+      expect(result.retainedDays).toBe(1);
+
+      const logsAfter = await StatsStorage.getDailyLogs();
+      expect(logsAfter[oldDate]).toBeUndefined();
+      expect(logsAfter[recentDate]).toBeDefined();
+    });
   });
 });
+
