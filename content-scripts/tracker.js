@@ -279,3 +279,5 @@
   }, true);
 
 })();
+
+// [EXPERIMENTAL] Hook for tracking interactive sessions in Claude Artifact views
