@@ -37,6 +37,13 @@ export const PLATFORMS = {
     domainMatch: ['perplexity.ai', 'www.perplexity.ai'],
     color: '#14b8a6',
     bgLight: '#ccfbf1'
+  },
+  aisearch: {
+    id: 'aisearch',
+    name: 'Google AI Search',
+    domainMatch: ['google.com/search', 'google.com/aisearch'],
+    color: '#4285F4',
+    bgLight: '#E8F0FE'
   }
 };
 

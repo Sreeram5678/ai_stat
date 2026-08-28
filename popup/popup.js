@@ -3,9 +3,11 @@
  */
 import { StatsStorage } from '../shared/storage.js';
 import { PLATFORMS } from '../shared/constants.js';
+import { ThemeManager } from '../shared/theme-manager.js';
+import { calculateTotalCostAndTokens, formatTokens } from '../shared/cost-estimator.js';
 
 async function initPopup() {
-  await applySavedTheme();
+  await ThemeManager.init();
   try {
     const stats = await StatsStorage.getSummaryStats(7);
     renderPopup(stats);
@@ -19,24 +21,6 @@ async function initPopup() {
 
   document.getElementById('btn-open-dashboard')?.addEventListener('click', openDashboard);
   document.getElementById('btn-open-dashboard-icon')?.addEventListener('click', openDashboard);
-
-  // Listen for storage changes (e.g. theme toggled from dashboard)
-  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName === 'local' && changes.settings?.newValue?.theme) {
-        document.documentElement.setAttribute('data-theme', changes.settings.newValue.theme);
-      }
-    });
-  }
-}
-
-async function applySavedTheme() {
-  try {
-    const settings = await StatsStorage.getSettings();
-    document.documentElement.setAttribute('data-theme', settings.theme === 'dark' ? 'dark' : 'light');
-  } catch (err) {
-    console.error('[AIStat] Failed to apply theme in popup:', err);
-  }
 }
 
 function openDashboard() {
@@ -77,16 +61,19 @@ function renderPopup(stats) {
 
   if (summaryTextEl) {
     if (todayCount === 0) {
-      summaryTextEl.textContent = 'Start prompting on ChatGPT, Claude, Gemini, or Perplexity to track your usage.';
+      summaryTextEl.textContent = 'Start prompting on ChatGPT, Claude, Gemini, Perplexity, DeepSeek, or Google AI Search to track your usage.';
     } else {
       const todayPlatforms = today.platforms || {};
       const topEntry = Object.entries(todayPlatforms).sort((a, b) => b[1] - a[1])[0];
       const topPlatformName = topEntry ? (PLATFORMS[topEntry[0]]?.name || topEntry[0]) : null;
 
+      const costData = calculateTotalCostAndTokens({ [today.date]: today }, 1);
+      const tokenSummary = costData.totalTokens > 0 ? ` (~${formatTokens(costData.totalTokens)} tokens)` : '';
+
       if (topPlatformName) {
-        summaryTextEl.textContent = `${todayCount} message${todayCount !== 1 ? 's' : ''} today, mostly on ${topPlatformName}. This week: ${week.messages} total.`;
+        summaryTextEl.textContent = `${todayCount} message${todayCount !== 1 ? 's' : ''}${tokenSummary} today, mostly on ${topPlatformName}. This week: ${week.messages} total.`;
       } else {
-        summaryTextEl.textContent = `${todayCount} message${todayCount !== 1 ? 's' : ''} sent today. This week: ${week.messages} total.`;
+        summaryTextEl.textContent = `${todayCount} message${todayCount !== 1 ? 's' : ''}${tokenSummary} sent today. This week: ${week.messages} total.`;
       }
     }
   }

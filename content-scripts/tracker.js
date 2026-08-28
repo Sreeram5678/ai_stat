@@ -24,6 +24,8 @@
     platformId = 'deepseek';
   } else if (host.includes('perplexity.ai')) {
     platformId = 'perplexity';
+  } else if (host.includes('google.com') && (window.location.pathname.includes('/search') || window.location.pathname.includes('/aisearch'))) {
+    platformId = 'aisearch';
   }
 
   console.log(`[AIStat] Content tracker active on ${platformId}`);
@@ -164,6 +166,10 @@
 
   function isChatInputElement(el) {
     if (!el) return false;
+    if (platformId === 'aisearch') {
+      if (el.name === 'q' || el.tagName === 'TEXTAREA' || el.isContentEditable || el.getAttribute('contenteditable') === 'true') return true;
+      if (el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'search' || !el.type)) return true;
+    }
     if (el.tagName === 'INPUT' && (el.type === 'search' || el.placeholder?.toLowerCase().includes('search') || el.id?.toLowerCase().includes('search'))) {
       return false;
     }

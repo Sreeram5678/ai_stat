@@ -1,4 +1,4 @@
-name: Validation and Manifest Lint
+name: CI Test Suite and Manifest Validation
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  validate:
-    name: Validate (Node ${{ matrix.node-version }})
+  test:
+    name: Test & Validate (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate manifest.json schema and JSON syntax
+      - name: Validate Manifest V3 schema and JSON syntax
         run: npm run validate
 
       - name: Verify asset paths exist
@@ -57,3 +57,6 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit
+
+      - name: Run test coverage
+        run: npm run test:coverage

@@ -25,6 +25,8 @@
     platformId = 'deepseek';
   } else if (host.includes('perplexity.ai')) {
     platformId = 'perplexity';
+  } else if (host.includes('google.com') && (window.location.pathname.includes('/search') || window.location.pathname.includes('/aisearch'))) {
+    platformId = 'aisearch';
   }
 
   if (!platformId) return;
@@ -52,8 +54,8 @@
     const url = urlStr.toLowerCase();
     const isPost = String(method || '').toUpperCase() === 'POST';
 
-    // Must be a POST request
-    if (!isPost) return false;
+    // Must be a POST request (or aisearch async queries)
+    if (!isPost && platformId !== 'aisearch') return false;
 
     // 1. ChatGPT: only prompt generation POST requests
     if (platformId === 'chatgpt') {
@@ -91,6 +93,11 @@
     // 5. Perplexity: query submission POST requests
     if (platformId === 'perplexity') {
       return url.includes('/rest/queries') || url.includes('/rest/ask') || url.includes('/api/perplexity_ask');
+    }
+
+    // 6. Google AI Search / AI Overview query endpoints
+    if (platformId === 'aisearch') {
+      return url.includes('/async/') || url.includes('/complete/search') || (url.includes('/search') && isPost) || url.includes('batchexecute');
     }
 
     return false;

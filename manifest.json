@@ -37,7 +37,11 @@
     "https://*.deepseek.com/*",
     "https://perplexity.ai/*",
     "https://www.perplexity.ai/*",
-    "https://*.perplexity.ai/*"
+    "https://*.perplexity.ai/*",
+    "https://www.google.com/search*",
+    "https://google.com/search*",
+    "https://www.google.com/aisearch*",
+    "https://google.com/aisearch*"
   ],
   "content_scripts": [
     {
@@ -53,7 +57,11 @@
         "https://*.deepseek.com/*",
         "https://perplexity.ai/*",
         "https://www.perplexity.ai/*",
-        "https://*.perplexity.ai/*"
+        "https://*.perplexity.ai/*",
+        "https://www.google.com/search*",
+        "https://google.com/search*",
+        "https://www.google.com/aisearch*",
+        "https://google.com/aisearch*"
       ],
       "js": ["content-scripts/network-interceptor.js"],
       "run_at": "document_start",
@@ -73,7 +81,11 @@
         "https://*.deepseek.com/*",
         "https://perplexity.ai/*",
         "https://www.perplexity.ai/*",
-        "https://*.perplexity.ai/*"
+        "https://*.perplexity.ai/*",
+        "https://www.google.com/search*",
+        "https://google.com/search*",
+        "https://www.google.com/aisearch*",
+        "https://google.com/aisearch*"
       ],
       "js": ["content-scripts/tracker.js"],
       "run_at": "document_idle",

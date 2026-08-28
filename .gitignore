@@ -25,6 +25,7 @@ pnpm-debug.log*
 # Build and Distribution
 dist/
 build/
+coverage/
 *.zip
 *.crx
 

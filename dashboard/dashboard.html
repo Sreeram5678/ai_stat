@@ -64,6 +64,10 @@
             <button class="filter-btn" data-period="30d">Last 30 Days</button>
             <button class="filter-btn" data-period="all">All Time</button>
           </div>
+          <button id="btn-open-wrapped" class="btn-primary" title="AIStat Wrapped Weekly Bento Card">
+            <i data-lucide="sparkles" class="icon-sm"></i>
+            <span>Weekly Wrapped</span>
+          </button>
           <button id="btn-refresh" class="secondary-btn" title="Refresh Telemetry">
             <i data-lucide="refresh-cw" class="icon-sm"></i>
             <span>Refresh</span>
@@ -76,7 +80,7 @@
 
         <!-- Hero KPI Cards -->
         <section class="kpi-grid">
-          <div class="kpi-card accent-indigo">
+          <div class="kpi-card">
             <div class="kpi-header">
               <span class="kpi-title">Today</span>
               <i data-lucide="sun" class="kpi-icon-svg"></i>
@@ -90,7 +94,7 @@
             </div>
           </div>
 
-          <div class="kpi-card accent-cyan">
+          <div class="kpi-card">
             <div class="kpi-header">
               <span class="kpi-title">This Week</span>
               <i data-lucide="calendar" class="kpi-icon-svg"></i>
@@ -104,7 +108,7 @@
             </div>
           </div>
 
-          <div class="kpi-card accent-emerald">
+          <div class="kpi-card">
             <div class="kpi-header">
               <span class="kpi-title">This Month</span>
               <i data-lucide="calendar-days" class="kpi-icon-svg"></i>
@@ -118,7 +122,7 @@
             </div>
           </div>
 
-          <div class="kpi-card accent-amber">
+          <div class="kpi-card">
             <div class="kpi-header">
               <span class="kpi-title">All Time</span>
               <i data-lucide="trophy" class="kpi-icon-svg"></i>
@@ -189,6 +193,7 @@
                   <th>Gemini</th>
                   <th>DeepSeek</th>
                   <th>Perplexity</th>
+                  <th>AI Search</th>
                 </tr>
               </thead>
               <tbody id="history-tbody"></tbody>
@@ -214,7 +219,11 @@
                   <p class="setting-desc">Switch between a clean light mode and a sleek dark mode.</p>
                 </div>
                 <div class="theme-toggle-group" id="theme-toggle-group" role="group" aria-label="Theme">
-                  <button type="button" class="theme-toggle-btn active" id="theme-btn-light" data-theme-choice="light">
+                  <button type="button" class="theme-toggle-btn" id="theme-btn-auto" data-theme-choice="auto">
+                    <i data-lucide="monitor" class="icon-sm"></i>
+                    <span>Auto</span>
+                  </button>
+                  <button type="button" class="theme-toggle-btn" id="theme-btn-light" data-theme-choice="light">
                     <i data-lucide="sun" class="icon-sm"></i>
                     <span>Light</span>
                   </button>
@@ -223,6 +232,32 @@
                     <span>Dark</span>
                   </button>
                 </div>
+              </div>
+
+              <div class="setting-row">
+                <div>
+                  <label class="setting-label">Reasoning Effort / Query Complexity</label>
+                  <p class="setting-desc">Calibrate token estimation for thinking/reasoning models (o3, Sonnet 5, Gemini Flash Thinking, DeepSeek R1).</p>
+                </div>
+                <select id="setting-reasoning" class="select-input">
+                  <option value="low">Low (Direct answers, ~750 tokens/msg)</option>
+                  <option value="medium" selected>Medium (Balanced thinking, ~2,000 tokens/msg)</option>
+                  <option value="high">High (Deep research & complex coding, ~5,000 tokens/msg)</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <div>
+                  <label class="setting-label">Active AI Subscription</label>
+                  <p class="setting-desc">Calculate your plan break-even ROI vs equivalent raw API costs.</p>
+                </div>
+                <select id="setting-subscription" class="select-input">
+                  <option value="free" selected>Free Tier / None</option>
+                  <option value="chatgpt-plus">ChatGPT Plus ($20/mo)</option>
+                  <option value="claude-pro">Claude Pro ($20/mo)</option>
+                  <option value="gemini-advanced">Gemini Advanced ($20/mo)</option>
+                  <option value="perplexity-pro">Perplexity Pro ($20/mo)</option>
+                </select>
               </div>
 
               <div class="setting-row">
@@ -243,8 +278,8 @@
           <div class="card">
             <div class="card-header">
               <div>
-                <h3>Data Export &amp; Reset</h3>
-                <span class="card-subtitle">Export your personal usage data or clear history</span>
+                <h3>Data Export &amp; Restore</h3>
+                <span class="card-subtitle">Export, backup, or restore your personal usage data</span>
               </div>
             </div>
             <div class="export-actions">
@@ -253,12 +288,17 @@
               <div class="export-buttons-group">
                 <button id="btn-export-json" class="secondary-btn">
                   <i data-lucide="download" class="icon-sm"></i>
-                  <span>Export Full Data (JSON)</span>
+                  <span>Export Backup (JSON)</span>
                 </button>
                 <button id="btn-export-csv" class="secondary-btn">
                   <i data-lucide="table-2" class="icon-sm"></i>
                   <span>Export Daily Stats (CSV)</span>
                 </button>
+                <button id="btn-import-json" class="secondary-btn">
+                  <i data-lucide="upload" class="icon-sm"></i>
+                  <span>Restore / Import Backup</span>
+                </button>
+                <input type="file" id="file-import-json" accept=".json,application/json" style="display:none;">
               </div>
 
               <hr class="divider">
@@ -277,6 +317,55 @@
       </div>
 
     </main>
+  </div>
+
+  <!-- ══ Bento Summary Card ("AIStat Wrapped") Modal ══ -->
+  <div id="modal-wrapped" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="brand-badge-icon"><i data-lucide="sparkles" class="icon-sm"></i></div>
+          <div>
+            <h3 class="modal-title">AIStat Wrapped — Weekly Insights</h3>
+            <p class="modal-subtitle">Swiss Bento summary card ready for sharing and export.</p>
+          </div>
+        </div>
+        <button id="btn-close-wrapped-modal" class="modal-close-btn" aria-label="Close modal">
+          <i data-lucide="x" class="icon-sm"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="summary-card-preview-wrap">
+          <canvas id="bento-summary-canvas" class="bento-canvas-preview"></canvas>
+        </div>
+
+        <div class="modal-card-controls">
+          <div class="card-theme-selector">
+            <span class="control-label">Card Style:</span>
+            <div class="theme-pill-group">
+              <button type="button" id="card-theme-dark" class="pill-btn active" data-card-theme="dark">
+                <i data-lucide="moon" class="icon-xs"></i> Dark
+              </button>
+              <button type="button" id="card-theme-light" class="pill-btn" data-card-theme="light">
+                <i data-lucide="sun" class="icon-xs"></i> Light
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-actions-group">
+            <button id="btn-copy-card" class="secondary-btn">
+              <i data-lucide="copy" class="icon-sm"></i>
+              <span id="copy-btn-text">Copy Image</span>
+            </button>
+            <button id="btn-download-card" class="btn-primary">
+              <i data-lucide="download" class="icon-sm"></i>
+              <span>Download PNG</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Lucide Icons (Bundled) -->

@@ -1,20 +1,31 @@
-/**
- * AIStat - Full Analytics Dashboard Controller
- */
 import { StatsStorage } from '../shared/storage.js';
 import { PLATFORMS } from '../shared/constants.js';
+import { ThemeManager } from '../shared/theme-manager.js';
+import {
+  calculateTotalCostAndTokens,
+  calculateSubscriptionROI,
+  formatCost,
+  formatTokens
+} from '../shared/cost-estimator.js';
+import {
+  generateBentoSummaryCard,
+  downloadSummaryCardPNG,
+  copySummaryCardToClipboard
+} from './summary-card.js';
 
 let currentStats = null;
 let currentPeriod = '7d';
+let wrappedCardTheme = 'dark';
 
 document.addEventListener('DOMContentLoaded', initDashboard);
 
 async function initDashboard() {
-  await applySavedTheme();
+  await ThemeManager.init();
   setupNavigation();
   setupFilterControls();
   setupSettingsAndExport();
   setupThemeToggle();
+  setupWrappedModal();
   await loadData();
   if (window.lucide) {
     window.lucide.createIcons();
@@ -22,29 +33,10 @@ async function initDashboard() {
 }
 
 // ── Theme ──────────────────────────────────────────────────────
-async function applySavedTheme() {
-  const settings = await StatsStorage.getSettings();
-  setTheme(settings.theme === 'dark' ? 'dark' : 'light', { persist: false });
-}
-
-function setTheme(theme, { persist = true } = {}) {
-  document.documentElement.setAttribute('data-theme', theme);
-
-  const lightBtn = document.getElementById('theme-btn-light');
-  const darkBtn = document.getElementById('theme-btn-dark');
-  if (lightBtn && darkBtn) {
-    lightBtn.classList.toggle('active', theme === 'light');
-    darkBtn.classList.toggle('active', theme === 'dark');
-  }
-
-  if (persist) {
-    StatsStorage.updateSettings({ theme });
-  }
-}
-
 function setupThemeToggle() {
-  document.getElementById('theme-btn-light')?.addEventListener('click', () => setTheme('light'));
-  document.getElementById('theme-btn-dark')?.addEventListener('click', () => setTheme('dark'));
+  document.getElementById('theme-btn-auto')?.addEventListener('click', () => ThemeManager.applyTheme('auto'));
+  document.getElementById('theme-btn-light')?.addEventListener('click', () => ThemeManager.applyTheme('light'));
+  document.getElementById('theme-btn-dark')?.addEventListener('click', () => ThemeManager.applyTheme('dark'));
 }
 
 function setupNavigation() {
@@ -322,8 +314,115 @@ async function renderHistoryTable() {
       <td>${day.platforms?.gemini || 0}</td>
       <td>${day.platforms?.deepseek || 0}</td>
       <td>${day.platforms?.perplexity || 0}</td>
+      <td>${day.platforms?.aisearch || 0}</td>
     </tr>
   `).join('');
+}
+
+// ── 5.5 AIStat Wrapped (Bento Summary Card) ──────────────────────
+async function renderWrappedCard() {
+  const canvas = document.getElementById('bento-summary-canvas');
+  if (!canvas) return;
+
+  try {
+    const dailyLogs = await StatsStorage.getDailyLogs();
+    generateBentoSummaryCard(dailyLogs, {
+      theme: wrappedCardTheme,
+      targetCanvas: canvas
+    });
+  } catch (err) {
+    console.error('[AIStat] Error generating bento summary card:', err);
+  }
+}
+
+function setupWrappedModal() {
+  const modal = document.getElementById('modal-wrapped');
+  const openBtn = document.getElementById('btn-open-wrapped');
+  const closeBtn = document.getElementById('btn-close-wrapped-modal');
+  const darkBtn = document.getElementById('card-theme-dark');
+  const lightBtn = document.getElementById('card-theme-light');
+  const copyBtn = document.getElementById('btn-copy-card');
+  const copyBtnText = document.getElementById('copy-btn-text');
+  const downloadBtn = document.getElementById('btn-download-card');
+  const canvas = document.getElementById('bento-summary-canvas');
+
+  const openModal = async () => {
+    if (modal) {
+      modal.classList.add('active');
+      modal.setAttribute('aria-hidden', 'false');
+      await renderWrappedCard();
+      if (window.lucide) window.lucide.createIcons();
+    }
+  };
+
+  const closeModal = () => {
+    if (modal) {
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+  };
+
+  openBtn?.addEventListener('click', openModal);
+  closeBtn?.addEventListener('click', closeModal);
+
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+      closeModal();
+    }
+  });
+
+  darkBtn?.addEventListener('click', async () => {
+    wrappedCardTheme = 'dark';
+    darkBtn.classList.add('active');
+    lightBtn?.classList.remove('active');
+    await renderWrappedCard();
+  });
+
+  lightBtn?.addEventListener('click', async () => {
+    wrappedCardTheme = 'light';
+    lightBtn.classList.add('active');
+    darkBtn?.classList.remove('active');
+    await renderWrappedCard();
+  });
+
+  downloadBtn?.addEventListener('click', () => {
+    if (canvas) {
+      const today = new Date().toISOString().slice(0, 10);
+      downloadSummaryCardPNG(canvas, `aistat-wrapped-${today}.png`);
+    }
+  });
+
+  copyBtn?.addEventListener('click', async () => {
+    if (!canvas) return;
+    try {
+      if (copyBtnText) copyBtnText.textContent = 'Copying...';
+      const ok = await copySummaryCardToClipboard(canvas);
+      if (ok) {
+        if (copyBtnText) copyBtnText.textContent = 'Copied to Clipboard!';
+        setTimeout(() => {
+          if (copyBtnText) copyBtnText.textContent = 'Copy Image';
+        }, 2000);
+      } else {
+        // If navigator.clipboard.write([ClipboardItem]) not available
+        downloadSummaryCardPNG(canvas, `aistat-wrapped.png`);
+        if (copyBtnText) copyBtnText.textContent = 'Downloaded PNG!';
+        setTimeout(() => {
+          if (copyBtnText) copyBtnText.textContent = 'Copy Image';
+        }, 2000);
+      }
+    } catch (err) {
+      console.warn('[AIStat] Clipboard copy fallback to download:', err);
+      downloadSummaryCardPNG(canvas, `aistat-wrapped.png`);
+      if (copyBtnText) copyBtnText.textContent = 'Downloaded PNG!';
+      setTimeout(() => {
+        if (copyBtnText) copyBtnText.textContent = 'Copy Image';
+      }, 2000);
+    }
+  });
 }
 
 // 6. Settings
@@ -332,14 +431,28 @@ function renderSettingsForm() {
   const s = currentStats.settings;
   const badgeSelect = document.getElementById('setting-badge');
   if (badgeSelect) badgeSelect.value = s.badgeDisplay || 'message_count';
+
+  const reasoningSelect = document.getElementById('setting-reasoning');
+  if (reasoningSelect && s.reasoningEffort) reasoningSelect.value = s.reasoningEffort;
+
+  const subSelect = document.getElementById('setting-subscription');
+  if (subSelect && s.subscription) subSelect.value = s.subscription;
 }
 
 function setupSettingsAndExport() {
   document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
     const badgeSelect = document.getElementById('setting-badge');
     const badgeDisplay = badgeSelect ? badgeSelect.value : 'message_count';
-    await StatsStorage.updateSettings({ badgeDisplay });
-    alert('Preferences saved!');
+
+    const reasoningSelect = document.getElementById('setting-reasoning');
+    const reasoningEffort = reasoningSelect ? reasoningSelect.value : 'medium';
+
+    const subSelect = document.getElementById('setting-subscription');
+    const subscription = subSelect ? subSelect.value : 'free';
+
+    await StatsStorage.updateSettings({ badgeDisplay, reasoningEffort, subscription });
+    alert('Preferences saved successfully!');
+    await loadData();
   });
 
   document.getElementById('btn-export-json')?.addEventListener('click', async () => {
@@ -350,6 +463,36 @@ function setupSettingsAndExport() {
   document.getElementById('btn-export-csv')?.addEventListener('click', async () => {
     const csv = await StatsStorage.exportCSV();
     downloadFile(csv, `aistat-usage-${Date.now()}.csv`, 'text/csv');
+  });
+
+  document.getElementById('btn-import-json')?.addEventListener('click', () => {
+    document.getElementById('file-import-json')?.click();
+  });
+
+  document.getElementById('file-import-json')?.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const validation = StatsStorage.validateBackup(text);
+      if (!validation.valid) {
+        alert(`Failed to import backup:\n• ${validation.errors.join('\n• ')}`);
+        return;
+      }
+
+      const shouldMerge = confirm('Do you want to MERGE this backup with your existing logs?\n\n• Click "OK" to MERGE (retains higher counts for duplicate days)\n• Click "Cancel" to OVERWRITE all existing logs with this backup');
+      const mode = shouldMerge ? 'merge' : 'overwrite';
+
+      await StatsStorage.importBackup(text, { mode });
+      alert(`Backup successfully imported (${mode} mode)!`);
+      await loadData();
+      renderHistoryTable();
+    } catch (err) {
+      alert(`Import error: ${err.message}`);
+    } finally {
+      event.target.value = '';
+    }
   });
 
   document.getElementById('btn-reset-data')?.addEventListener('click', async () => {
