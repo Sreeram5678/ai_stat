@@ -154,8 +154,10 @@ describe('Model Arbitrage & ROI Simulator Suite', () => {
       slider.dispatchEvent(new Event('input'));
 
       expect(sim.state.monthlyPrompts).toBe(1000);
-      const savingsVal = document.getElementById('roi-savings-val');
-      expect(savingsVal.textContent).toContain('/ mo');
+      const headline = document.getElementById('roi-verdict-headline');
+      expect(headline.textContent).toContain('Switching to');
+      const baseCost = document.getElementById('roi-baseline-cost');
+      expect(parseFloat(baseCost.textContent)).toBeGreaterThan(0);
     });
   });
 });

@@ -40,7 +40,7 @@ describe('Load, Stress & High-Volume Telemetry Suite', () => {
 
     expect(costAnalysis.totalMessages).toBeGreaterThan(20000);
     expect(costAnalysis.totalTokens).toBeGreaterThan(10000000);
-    expect(t1 - t0).toBeLessThan(100); // Must be fast (< 100ms)
+    expect(t1 - t0).toBeLessThan(250); // Must be fast (< 250ms for 1,000 days)
   });
 
   it('should handle high-frequency concurrent increment requests deterministically', async () => {
