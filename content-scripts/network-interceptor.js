@@ -57,44 +57,58 @@
     // Must be a POST request (or aisearch async queries)
     if (!isPost && platformId !== 'aisearch') return false;
 
-    // 1. ChatGPT: only prompt generation POST requests
+    // 1. ChatGPT: conversation and prompt generation POST requests
     if (platformId === 'chatgpt') {
-      const isPostPrompt = /\/backend-api\/(f\/)?conversation(\?|$)/i.test(url) || /\/backend-anon\/(f\/)?conversation(\?|$)/i.test(url);
       const isExcluded = (
         url.includes('/conversations') ||
-        url.includes('/lat/') ||
         url.includes('/bazaar/') ||
         url.includes('/me') ||
         url.includes('/feedback') ||
         url.includes('/synthesize')
       );
-      return isPostPrompt && !isExcluded;
+      const isPromptEndpoint = url.includes('/conversation') || url.includes('/prompt') || url.includes('/chat');
+      return isPost && isPromptEndpoint && !isExcluded;
     }
 
     // 2. Claude: prompt completion POST requests
     if (platformId === 'claude') {
-      return (
+      return isPost && (
         url.includes('/completion') ||
         url.includes('/retry_completion') ||
-        url.includes('/chat_messages')
-      ) && !url.includes('/chat_conversations?');
+        url.includes('/chat_messages') ||
+        url.includes('/append_message')
+      );
     }
 
     // 3. Gemini: stream response generation & assistant prompt RPCs
     if (platformId === 'gemini') {
-      const isBardRpc = url.includes('bardfrontendservice') || url.includes('streamgenerate') || url.includes('assistant.lamda') || url.includes('/_/bardchatui/data/');
-      const isGeminiBatchexecute = url.includes('batchexecute') && (url.includes('streamgenerate') || url.includes('houzee') || url.includes('bard'));
-      return isPost && (isBardRpc || isGeminiBatchexecute);
+      return isPost && (
+        url.includes('bardchatui') ||
+        url.includes('streamgenerate') ||
+        url.includes('bardfrontendservice') ||
+        url.includes('assistant.lamda') ||
+        url.includes('batchexecute')
+      );
     }
 
     // 4. DeepSeek: chat completion POST requests
     if (platformId === 'deepseek') {
-      return url.includes('/chat/completion') || url.includes('/chat_completion') || url.includes('/api/v0/chat');
+      return isPost && (
+        url.includes('/chat/completion') ||
+        url.includes('/chat_completion') ||
+        url.includes('/api/v0/chat') ||
+        url.includes('/api/v0/chat/completion')
+      );
     }
 
     // 5. Perplexity: query submission POST requests
     if (platformId === 'perplexity') {
-      return url.includes('/rest/queries') || url.includes('/rest/ask') || url.includes('/api/perplexity_ask');
+      return isPost && (
+        url.includes('/rest/queries') ||
+        url.includes('/rest/ask') ||
+        url.includes('/api/perplexity_ask') ||
+        url.includes('/api/query')
+      );
     }
 
     // 6. Google AI Search / AI Overview query endpoints

@@ -251,53 +251,43 @@
     try {
       if (!isExtensionValid()) return;
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-        const target = e.target;
-        if (isChatInputElement(target) || isChatInputElement(document.activeElement)) {
-          const currentText = getAnyPromptInputText() || (target?.value || target?.innerText || '').trim();
-          const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
-          if (currentText.length > 0 || hasRecentText) {
-            recordMessage('enter_key');
+        const path = e.composedPath ? e.composedPath() : [e.target];
+        let isInput = isChatInputElement(e.target) || isChatInputElement(document.activeElement);
+        if (!isInput) {
+          for (const el of path) {
+            if (el && el.nodeType === 1 && isChatInputElement(el)) {
+              isInput = true;
+              break;
+            }
           }
         }
-      }
-    } catch (err) {}
-  }, true);
-
-  // Capture text on pointerdown before React / Svelte clears it on click
-  window.addEventListener('pointerdown', (e) => {
-    try {
-      if (!isExtensionValid()) return;
-      if (isSendButton(e.target)) {
-        const currentText = getAnyPromptInputText();
-        const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
-        if (currentText.length > 0 || hasRecentText) {
-          recordMessage('send_button_pointerdown');
+        if (isInput) {
+          recordMessage('enter_key');
         }
       }
     } catch (err) {}
   }, true);
 
-  window.addEventListener('click', (e) => {
+  function handleSendAction(e, src) {
     try {
       if (!isExtensionValid()) return;
-      if (isSendButton(e.target)) {
-        const currentText = getAnyPromptInputText();
-        const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
-        if (currentText.length > 0 || hasRecentText) {
-          recordMessage('send_button_click');
+      const path = e.composedPath ? e.composedPath() : [e.target];
+      for (const el of path) {
+        if (el && el.nodeType === 1 && isSendButton(el)) {
+          recordMessage(src);
+          break;
         }
       }
     } catch (err) {}
-  }, true);
+  }
 
+  // Pointerdown captures early before React/Svelte mutates DOM
+  window.addEventListener('pointerdown', (e) => handleSendAction(e, 'send_button_pointerdown'), true);
+  window.addEventListener('click', (e) => handleSendAction(e, 'send_button_click'), true);
   window.addEventListener('submit', () => {
     try {
       if (!isExtensionValid()) return;
-      const currentText = getAnyPromptInputText();
-      const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
-      if (currentText.length > 0 || hasRecentText) {
-        recordMessage('form_submit');
-      }
+      recordMessage('form_submit');
     } catch (err) {}
   }, true);
 
