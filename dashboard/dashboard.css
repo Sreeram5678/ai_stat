@@ -71,6 +71,104 @@
   --shadow-btn:   0 4px 16px rgba(212, 117, 42, 0.36);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Dark Theme — activated via [data-theme="dark"] on <html>
+   Same tokens, remapped to a sleek dark palette so every
+   component that already consumes the variables above just works.
+   ══════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-body:        #17120E;
+  --bg-sidebar:     #1D1712;
+  --bg-card:        #221A14;
+  --bg-card-hover:  #2A2018;
+  --bg-subtle:      #2E241B;
+  --bg-inset:        #362A1F;
+  --bg-input:       #241C15;
+
+  /* Borders */
+  --border-soft:    rgba(237, 213, 183, 0.10);
+  --border-medium:  rgba(237, 213, 183, 0.18);
+  --border-accent:  rgba(230, 145, 74, 0.40);
+
+  /* Text */
+  --text-heading:   #F5EBDD;
+  --text-primary:   #E9DAC5;
+  --text-secondary: #C4AC8F;
+  --text-muted:     #8F7A63;
+
+  /* Accent */
+  --accent:         #E6914A;
+  --accent-deep:    #F2A75E;
+  --accent-glow:    rgba(230, 145, 74, 0.22);
+  --gold:           #D8B36E;
+  --gold-bg:        rgba(216, 179, 110, 0.16);
+
+  /* Quality Tiers */
+  --color-high:     #59B57C;
+  --color-high-bg:  rgba(89, 181, 124, 0.15);
+  --color-high-bd:  rgba(89, 181, 124, 0.32);
+
+  --color-med:      #E6A93A;
+  --color-med-bg:   rgba(230, 169, 58, 0.15);
+  --color-med-bd:   rgba(230, 169, 58, 0.32);
+
+  --color-low:      #DB6E58;
+  --color-low-bg:   rgba(219, 110, 88, 0.15);
+  --color-low-bd:   rgba(219, 110, 88, 0.32);
+
+  /* Shadows (darker surface, so shadows need to be deeper/blacker) */
+  --shadow-card:  0 2px 12px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-lift:  0 6px 24px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-btn:   0 4px 16px rgba(230, 145, 74, 0.30);
+}
+
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(ellipse at 0% 0%, rgba(230, 145, 74, 0.08) 0%, transparent 45%),
+    radial-gradient(ellipse at 100% 100%, rgba(216, 179, 110, 0.06) 0%, transparent 45%);
+}
+
+/* Smooth transition between themes */
+body, .card, .sidebar, .top-bar, select, input, button {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ── Theme Toggle Buttons ───────────────────────────────────── */
+.theme-toggle-group {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--bg-subtle);
+  padding: 4px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-soft);
+}
+
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.theme-toggle-btn.active {
+  background: var(--bg-card);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(43, 27, 20, 0.12);
+}
+
 /* ── Reset ──────────────────────────────────────────────────── */
 * {
   box-sizing: border-box;

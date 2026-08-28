@@ -10,13 +10,41 @@ let currentPeriod = '7d';
 document.addEventListener('DOMContentLoaded', initDashboard);
 
 async function initDashboard() {
+  await applySavedTheme();
   setupNavigation();
   setupFilterControls();
   setupSettingsAndExport();
+  setupThemeToggle();
   await loadData();
   if (window.lucide) {
     window.lucide.createIcons();
   }
+}
+
+// ── Theme ──────────────────────────────────────────────────────
+async function applySavedTheme() {
+  const settings = await StatsStorage.getSettings();
+  setTheme(settings.theme === 'dark' ? 'dark' : 'light', { persist: false });
+}
+
+function setTheme(theme, { persist = true } = {}) {
+  document.documentElement.setAttribute('data-theme', theme);
+
+  const lightBtn = document.getElementById('theme-btn-light');
+  const darkBtn = document.getElementById('theme-btn-dark');
+  if (lightBtn && darkBtn) {
+    lightBtn.classList.toggle('active', theme === 'light');
+    darkBtn.classList.toggle('active', theme === 'dark');
+  }
+
+  if (persist) {
+    StatsStorage.updateSettings({ theme });
+  }
+}
+
+function setupThemeToggle() {
+  document.getElementById('theme-btn-light')?.addEventListener('click', () => setTheme('light'));
+  document.getElementById('theme-btn-dark')?.addEventListener('click', () => setTheme('dark'));
 }
 
 function setupNavigation() {
@@ -148,7 +176,7 @@ function renderActivityChart() {
 
   let barsHtml = `
     <div style="width: 100%; display: flex; flex-direction: column; gap: 12px;">
-      <div style="display: flex; justify-content: space-between; align-items: flex-end; height: 160px; padding: 0 4px; border-bottom: 1px solid rgba(92,61,46,0.12); overflow-x: auto;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; height: 160px; padding: 0 4px; border-bottom: 1px solid var(--border-soft); overflow-x: auto;">
   `;
 
   days.forEach((d, idx) => {
@@ -158,20 +186,20 @@ function renderActivityChart() {
 
     barsHtml += `
       <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: ${is30 ? '16px' : '28px'};" title="${d.date}: ${d.messagesCount} messages">
-        <span style="font-size: 10px; font-weight: 700; color: #D4752A;">${showCount && d.messagesCount > 0 ? d.messagesCount : ''}</span>
-        <div style="width: ${is30 ? '12px' : '22px'}; height: 120px; background: #EDE1CC; border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden;">
-          <div style="width: 100%; height: ${heightPercent}%; background: ${isToday ? '#10a37f' : 'linear-gradient(180deg, #C59B4E, #D4752A)'}; border-radius: 4px;"></div>
+        <span style="font-size: 10px; font-weight: 700; color: var(--accent);">${showCount && d.messagesCount > 0 ? d.messagesCount : ''}</span>
+        <div style="width: ${is30 ? '12px' : '22px'}; height: 120px; background: var(--bg-subtle); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden;">
+          <div style="width: 100%; height: ${heightPercent}%; background: ${isToday ? '#10a37f' : 'linear-gradient(180deg, var(--gold), var(--accent))'}; border-radius: 4px;"></div>
         </div>
-        <span style="font-size: ${is30 ? '9px' : '11px'}; color: #A07A5E; font-weight: 600; white-space: nowrap;">${d.label || ''}</span>
+        <span style="font-size: ${is30 ? '9px' : '11px'}; color: var(--text-muted); font-weight: 600; white-space: nowrap;">${d.label || ''}</span>
       </div>
     `;
   });
 
   barsHtml += `
       </div>
-      <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: #A07A5E; padding: 0 4px;">
-        <span>Period total: <strong style="color: #2B1B14;">${currentStats.period.messages || 0} messages</strong></span>
-        <span>Daily avg: <strong style="color: #2B1B14;">${((currentStats.period.messages || 0) / Math.max(1, days.length)).toFixed(1)}</strong></span>
+      <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-muted); padding: 0 4px;">
+        <span>Period total: <strong style="color: var(--text-heading);">${currentStats.period.messages || 0} messages</strong></span>
+        <span>Daily avg: <strong style="color: var(--text-heading);">${((currentStats.period.messages || 0) / Math.max(1, days.length)).toFixed(1)}</strong></span>
       </div>
     </div>
   `;
@@ -191,7 +219,7 @@ function renderPlatformChart() {
 
   if (totalMsgs === 0) {
     html += `
-      <div style="text-align: center; color: #A07A5E; padding: 40px 0;">
+      <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
         <p style="font-size: 13px; font-weight: 500;">No prompt activity logged yet.</p>
         <p style="font-size: 11.5px; margin-top: 4px;">Start prompting on ChatGPT, Claude, Gemini, Perplexity, or DeepSeek to see your breakdown.</p>
       </div>
@@ -209,10 +237,10 @@ function renderPlatformChart() {
       html += `
         <div style="display: flex; flex-direction: column; gap: 4px;">
           <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
-            <span style="color: #3D2415;">${p.name}</span>
-            <span style="color: #A07A5E;">${count} msgs (${pct}%)</span>
+            <span style="color: var(--text-primary);">${p.name}</span>
+            <span style="color: var(--text-muted);">${count} msgs (${pct}%)</span>
           </div>
-          <div style="height: 8px; background: #EDE1CC; border-radius: 4px; overflow: hidden;">
+          <div style="height: 8px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
             <div style="height: 100%; width: ${pct}%; background: ${p.color}; border-radius: 4px; transition: width 0.4s ease;"></div>
           </div>
         </div>
@@ -242,8 +270,8 @@ function renderHourlyHeatmap() {
   for (let i = 0; i < 24; i++) {
     const count = hourCounts[i];
     const intensity = count > 0 ? Math.max(0.15, count / maxHour) : 0;
-    const bg = count > 0 ? `rgba(212, 117, 42, ${intensity})` : '#EDE1CC';
-    const textColor = count > 0 ? '#2B1B14' : '#A07A5E';
+    const bg = count > 0 ? `color-mix(in srgb, var(--accent) ${Math.round(intensity * 100)}%, var(--bg-subtle))` : 'var(--bg-subtle)';
+    const textColor = count > 0 ? 'var(--text-heading)' : 'var(--text-muted)';
 
     html += `
       <div class="heat-cell" style="background: ${bg}; color: ${textColor};" title="${i}:00–${i}:59 (${count} messages)">
@@ -277,7 +305,7 @@ async function renderHistoryTable() {
   if (sorted.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; color: #64748b; padding: 30px;">
+        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">
           No usage history logged yet. Start prompting on any AI platform to see records here.
         </td>
       </tr>
@@ -288,7 +316,7 @@ async function renderHistoryTable() {
   tbody.innerHTML = sorted.map(day => `
     <tr>
       <td><strong>${day.date}</strong></td>
-      <td><span style="color: #D4752A; font-weight: 700;">${day.messagesCount || 0}</span></td>
+      <td><span style="color: var(--accent); font-weight: 700;">${day.messagesCount || 0}</span></td>
       <td>${day.platforms?.chatgpt || 0}</td>
       <td>${day.platforms?.claude || 0}</td>
       <td>${day.platforms?.gemini || 0}</td>

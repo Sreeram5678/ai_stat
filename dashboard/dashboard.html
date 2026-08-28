@@ -210,6 +210,23 @@
             <div class="settings-form">
               <div class="setting-row">
                 <div>
+                  <label class="setting-label">Dashboard Theme</label>
+                  <p class="setting-desc">Switch between a clean light mode and a sleek dark mode.</p>
+                </div>
+                <div class="theme-toggle-group" id="theme-toggle-group" role="group" aria-label="Theme">
+                  <button type="button" class="theme-toggle-btn active" id="theme-btn-light" data-theme-choice="light">
+                    <i data-lucide="sun" class="icon-sm"></i>
+                    <span>Light</span>
+                  </button>
+                  <button type="button" class="theme-toggle-btn" id="theme-btn-dark" data-theme-choice="dark">
+                    <i data-lucide="moon" class="icon-sm"></i>
+                    <span>Dark</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <div>
                   <label class="setting-label">Extension Badge Display</label>
                   <p class="setting-desc">Show today's message count directly on the extension icon.</p>
                 </div>
