@@ -80,9 +80,11 @@
       ) && !url.includes('/chat_conversations?');
     }
 
-    // 3. Gemini: stream response generation (excludes batchexecute)
+    // 3. Gemini: stream response generation & assistant prompt RPCs
     if (platformId === 'gemini') {
-      return url.includes('streamgenerate') && !url.includes('batchexecute');
+      const isBardRpc = url.includes('bardfrontendservice') || url.includes('streamgenerate') || url.includes('assistant.lamda') || url.includes('/_/bardchatui/data/');
+      const isGeminiBatchexecute = url.includes('batchexecute') && (url.includes('streamgenerate') || url.includes('houzee') || url.includes('bard'));
+      return isPost && (isBardRpc || isGeminiBatchexecute);
     }
 
     // 4. DeepSeek: chat completion POST requests

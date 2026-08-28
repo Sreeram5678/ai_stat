@@ -129,24 +129,24 @@
       if (txt) return txt;
     }
 
-    // Gemini: rich-textarea
-    const geminiBox = document.querySelector('rich-textarea div[contenteditable="true"], rich-textarea .ql-editor');
+    // Gemini: rich-textarea, role="textbox", .ql-editor
+    const geminiBox = document.querySelector('rich-textarea div[contenteditable="true"], rich-textarea .ql-editor, rich-textarea p, rich-textarea [role="textbox"], rich-textarea');
     if (geminiBox) {
-      const txt = (geminiBox.innerText || '').trim();
+      const txt = (geminiBox.innerText || geminiBox.textContent || geminiBox.value || '').trim();
       if (txt) return txt;
     }
 
     // Active Element
     const active = document.activeElement;
     if (active) {
-      const txt = (active.value || active.innerText || '').trim();
+      const txt = (active.value || active.innerText || active.textContent || '').trim();
       if (txt) return txt;
     }
 
     // Universal Textarea / Contenteditable
-    const anyTextarea = document.querySelector('textarea, div[contenteditable="true"]');
+    const anyTextarea = document.querySelector('textarea, div[contenteditable="true"], [role="textbox"]');
     if (anyTextarea) {
-      const txt = (anyTextarea.value || anyTextarea.innerText || '').trim();
+      const txt = (anyTextarea.value || anyTextarea.innerText || anyTextarea.textContent || '').trim();
       if (txt) return txt;
     }
 
@@ -169,6 +169,8 @@
         text = target.value;
       } else if (target.innerText !== undefined) {
         text = target.innerText;
+      } else if (target.textContent !== undefined) {
+        text = target.textContent;
       }
       if (text && text.trim().length > 0) {
         lastKnownText = text.trim();
@@ -193,14 +195,14 @@
     if (el.id === 'prompt-textarea' || (el.closest && el.closest('#prompt-textarea'))) return true;
     if (el.tagName === 'TEXTAREA') return true;
     if (el.tagName === 'INPUT' && (el.type === 'text' || !el.type)) return true;
-    if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') return true;
-    if (el.closest && el.closest('#prompt-textarea, rich-textarea, .ProseMirror, [contenteditable="true"]')) return true;
+    if (el.isContentEditable || el.getAttribute('contenteditable') === 'true' || el.getAttribute('role') === 'textbox') return true;
+    if (el.closest && el.closest('#prompt-textarea, rich-textarea, .ProseMirror, [contenteditable="true"], [role="textbox"]')) return true;
     return false;
   }
 
   function isSendButton(el) {
     if (!el) return false;
-    const btn = el.closest('button, [role="button"], [type="submit"]');
+    const btn = el.closest('button, [role="button"], [type="submit"], .send-button, .mat-mdc-icon-button');
     if (!btn) return false;
 
     const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
@@ -208,17 +210,15 @@
     const id = (btn.id || '').toLowerCase();
     const className = (btn.className || '').toLowerCase();
     const jsname = (btn.getAttribute('jsname') || '').toLowerCase();
-    const text = (btn.innerText || '').toLowerCase().trim();
+    const text = (btn.innerText || btn.textContent || '').toLowerCase().trim();
 
     const isExplicitSend = (
       ariaLabel.includes('send') ||
       ariaLabel.includes('submit') ||
       testId.includes('send') ||
       testId.includes('submit') ||
-      id.includes('send-button') ||
-      id === 'send' ||
-      className.includes('send-button') ||
-      className.includes('submit-button') ||
+      id.includes('send') ||
+      className.includes('send') ||
       jsname.includes('send') ||
       text === 'send' ||
       text === 'submit' ||
