@@ -5,6 +5,7 @@ import { StatsStorage } from '../shared/storage.js';
 import { PLATFORMS } from '../shared/constants.js';
 
 async function initPopup() {
+  await applySavedTheme();
   try {
     const stats = await StatsStorage.getSummaryStats(7);
     renderPopup(stats);
@@ -18,6 +19,24 @@ async function initPopup() {
 
   document.getElementById('btn-open-dashboard')?.addEventListener('click', openDashboard);
   document.getElementById('btn-open-dashboard-icon')?.addEventListener('click', openDashboard);
+
+  // Listen for storage changes (e.g. theme toggled from dashboard)
+  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local' && changes.settings?.newValue?.theme) {
+        document.documentElement.setAttribute('data-theme', changes.settings.newValue.theme);
+      }
+    });
+  }
+}
+
+async function applySavedTheme() {
+  try {
+    const settings = await StatsStorage.getSettings();
+    document.documentElement.setAttribute('data-theme', settings.theme === 'dark' ? 'dark' : 'light');
+  } catch (err) {
+    console.error('[AIStat] Failed to apply theme in popup:', err);
+  }
 }
 
 function openDashboard() {
@@ -116,7 +135,7 @@ function renderPopup(stats) {
 
   if (platformList) {
     if (totalMsgs === 0) {
-      platformList.innerHTML = `<div style="text-align:center; color: #A07A5E; font-size:12px; padding: 8px 0;">No messages yet this week</div>`;
+      platformList.innerHTML = `<div style="text-align:center; color: var(--text-muted); font-size:12px; padding: 8px 0;">No messages yet this week</div>`;
     } else {
       const sorted = Object.entries(PLATFORMS)
         .map(([id, p]) => ({ id, p, count: totals[id] || 0 }))
@@ -128,10 +147,10 @@ function renderPopup(stats) {
         return `
           <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600;">
-              <span style="color:#3D2415;">${p.name}</span>
-              <span style="color:#A07A5E;">${count} (${pct}%)</span>
+              <span style="color: var(--text-primary);">${p.name}</span>
+              <span style="color: var(--text-muted);">${count} (${pct}%)</span>
             </div>
-            <div style="height:6px; background:#EDE1CC; border-radius:4px; overflow:hidden;">
+            <div style="height:6px; background: var(--bg-subtle); border-radius:4px; overflow:hidden;">
               <div style="height:100%; width:${pct}%; background:${p.color}; border-radius:4px; transition:width 0.4s ease;"></div>
             </div>
           </div>
