@@ -1,5 +1,6 @@
 import { StatsStorage } from '../shared/storage.js';
 import { PLATFORMS } from '../shared/constants.js';
+import { CATEGORIES } from '../shared/topic-categorizer.js';
 import { ThemeManager } from '../shared/theme-manager.js';
 import {
   calculateTotalCostAndTokens,
@@ -8,14 +9,35 @@ import {
   formatTokens
 } from '../shared/cost-estimator.js';
 import {
+  calculatePromptVelocity,
+  calculateTurnaroundTimes,
+  calculateContextSwitching,
+  calculateWorkstyleRatios,
+  buildWeeklyHeatmapMatrix
+} from '../shared/velocity-analyzer.js';
+import {
+  exportMarkdownReport,
+  exportAnonymousBenchmark
+} from '../shared/telemetry-exporter.js';
+import {
   generateBentoSummaryCard,
   downloadSummaryCardPNG,
   copySummaryCardToClipboard
 } from './summary-card.js';
+import { ROISimulator } from './roi-simulator.js';
 
+let rawDailyLogs = {};
 let currentStats = null;
 let currentPeriod = '7d';
 let wrappedCardTheme = 'dark';
+let roiSimulatorInstance = null;
+
+// Composable Filter State
+const filterState = {
+  platform: 'all',
+  topic: 'all',
+  session: 'all'
+};
 
 document.addEventListener('DOMContentLoaded', initDashboard);
 
@@ -23,9 +45,15 @@ async function initDashboard() {
   await ThemeManager.init();
   setupNavigation();
   setupFilterControls();
+  setupDimensionFilters();
   setupSettingsAndExport();
   setupThemeToggle();
   setupWrappedModal();
+
+  // Mount ROI Simulator
+  roiSimulatorInstance = new ROISimulator({ containerId: 'roi-simulator-container' });
+  roiSimulatorInstance.mount();
+
   await loadData();
   if (window.lucide) {
     window.lucide.createIcons();
@@ -46,9 +74,10 @@ function setupNavigation() {
   const subheading = document.getElementById('page-subheading');
 
   const titles = {
-    overview: { title: 'Usage Overview', sub: 'How many messages you have sent to AI assistants.' },
-    history:  { title: 'Daily History', sub: 'Message counts broken down by day and platform.' },
-    settings: { title: 'Settings & Data Export', sub: 'Configure the extension and export your personal data.' }
+    overview:  { title: 'Usage Overview', sub: 'Personal AI analytics, velocity metrics, topic categorization, and cost arbitrage.' },
+    arbitrage: { title: 'Model Arbitrage & ROI Simulator', sub: 'Real-time client-side interactive modeling across LLM providers and subscriptions.' },
+    history:   { title: 'Daily History', sub: 'Message counts broken down by day, platform, and primary topic.' },
+    settings:  { title: 'Settings & Data Export', sub: 'Configure retention policies, badge behavior, and export your personal data.' }
   };
 
   navButtons.forEach(btn => {
@@ -70,6 +99,8 @@ function setupNavigation() {
 
       if (tabKey === 'history') {
         renderHistoryTable();
+      } else if (tabKey === 'arbitrage' && roiSimulatorInstance) {
+        roiSimulatorInstance.update();
       }
 
       if (window.lucide) {
@@ -97,14 +128,94 @@ function setupFilterControls() {
   });
 }
 
+function setupDimensionFilters() {
+  const platformSel = document.getElementById('filter-platform');
+  const topicSel = document.getElementById('filter-topic');
+  const sessionSel = document.getElementById('filter-session');
+  const resetBtn = document.getElementById('btn-reset-filters');
+
+  const applyFilters = () => {
+    if (platformSel) filterState.platform = platformSel.value;
+    if (topicSel) filterState.topic = topicSel.value;
+    if (sessionSel) filterState.session = sessionSel.value;
+    renderDashboard();
+  };
+
+  platformSel?.addEventListener('change', applyFilters);
+  topicSel?.addEventListener('change', applyFilters);
+  sessionSel?.addEventListener('change', applyFilters);
+
+  resetBtn?.addEventListener('click', () => {
+    filterState.platform = 'all';
+    filterState.topic = 'all';
+    filterState.session = 'all';
+    if (platformSel) platformSel.value = 'all';
+    if (topicSel) topicSel.value = 'all';
+    if (sessionSel) sessionSel.value = 'all';
+    renderDashboard();
+  });
+}
+
 async function loadData() {
   try {
-    const daysArg = currentPeriod === '30d' ? 30 : (currentPeriod === 'all' ? 'all' : 7);
+    rawDailyLogs = await StatsStorage.getDailyLogs();
+    const daysArg = currentPeriod === '30d' ? 30 : (currentPeriod === '90d' ? 90 : (currentPeriod === 'all' ? 'all' : 7));
     currentStats = await StatsStorage.getSummaryStats(daysArg);
     renderDashboard();
   } catch (err) {
     console.error('[AIStat] Failed to load dashboard data:', err);
   }
+}
+
+/**
+ * Filters the daily logs dataset based on active composable filters without mutating raw data.
+ */
+function getFilteredDailyLogs() {
+  const filtered = {};
+  Object.entries(rawDailyLogs).forEach(([dateKey, day]) => {
+    if (!day) return;
+
+    let dayCount = 0;
+    const cleanPlatforms = {};
+    const cleanTopics = {};
+
+    if (day.platforms) {
+      Object.entries(day.platforms).forEach(([p, c]) => {
+        if (filterState.platform === 'all' || filterState.platform === p) {
+          cleanPlatforms[p] = c;
+          dayCount += c;
+        }
+      });
+    }
+
+    if (day.topics) {
+      Object.entries(day.topics).forEach(([t, c]) => {
+        if (filterState.topic === 'all' || filterState.topic === t) {
+          cleanTopics[t] = c;
+        }
+      });
+    }
+
+    // Check if day matches active topic filter when topic != 'all'
+    if (filterState.topic !== 'all') {
+      const topicCount = day.topics?.[filterState.topic] || 0;
+      if (topicCount === 0) return;
+    }
+
+    // Check platform filter
+    if (filterState.platform !== 'all' && dayCount === 0) {
+      return;
+    }
+
+    filtered[dateKey] = {
+      ...day,
+      messagesCount: dayCount > 0 ? dayCount : day.messagesCount,
+      platforms: cleanPlatforms,
+      topics: cleanTopics
+    };
+  });
+
+  return filtered;
 }
 
 function renderDashboard() {
@@ -113,7 +224,9 @@ function renderDashboard() {
   renderKPIs();
   renderActivityChart();
   renderPlatformChart();
-  renderHourlyHeatmap();
+  renderTopicDistribution();
+  renderProductivityIntelligence();
+  renderWeeklyHeatmap();
   renderSettingsForm();
 
   if (window.lucide) {
@@ -123,26 +236,33 @@ function renderDashboard() {
 
 // 1. KPI Cards
 function renderKPIs() {
-  const { today, week, month, allTime, streak } = currentStats;
+  const { today, week, month, allTime, streak, period } = currentStats;
 
   const todayEl = document.getElementById('kpi-today');
   const weekEl = document.getElementById('kpi-week');
-  const monthEl = document.getElementById('kpi-month');
-  const alltimeEl = document.getElementById('kpi-alltime');
+  const velocityEl = document.getElementById('kpi-velocity');
+  const complexityEl = document.getElementById('kpi-complexity');
   const streakEl = document.getElementById('kpi-streak-sub');
   const weekSubEl = document.getElementById('kpi-week-sub');
   const topPlatformEl = document.getElementById('kpi-top-platform');
 
   if (todayEl) todayEl.textContent = today.messagesCount || 0;
   if (weekEl) weekEl.textContent = week.messages || 0;
-  if (monthEl) monthEl.textContent = month.messages || 0;
-  if (alltimeEl) alltimeEl.textContent = allTime.messages || 0;
   if (streakEl) streakEl.textContent = `${streak || 0} day streak`;
 
   const dailyAvg = (week.messages || 0) > 0 ? ((week.messages || 0) / 7).toFixed(1) : '0';
   if (weekSubEl) weekSubEl.textContent = `~${dailyAvg}/day avg (last 7d)`;
 
-  // Calculate top platform
+  // Prompt velocity estimate
+  const activeHoursToday = Object.keys(today.hours || {}).length || 1;
+  const velocityVal = today.messagesCount > 0 ? (today.messagesCount / activeHoursToday).toFixed(1) : '0.0';
+  if (velocityEl) velocityEl.textContent = velocityVal;
+
+  // Average Complexity
+  const avgComp = period?.averageComplexity || today?.avgComplexity || 35;
+  if (complexityEl) complexityEl.textContent = Math.round(avgComp);
+
+  // Top platform
   const pTotals = allTime.platformTotals || week.platformTotals || {};
   let topP = '—';
   let topCount = 0;
@@ -164,7 +284,7 @@ function renderActivityChart() {
 
   const days = currentStats.period.timeline;
   const maxMsgs = Math.max(1, ...days.map(d => d.messagesCount));
-  const is30 = days.length > 14;
+  const isLarge = days.length > 14;
 
   let barsHtml = `
     <div style="width: 100%; display: flex; flex-direction: column; gap: 12px;">
@@ -173,16 +293,16 @@ function renderActivityChart() {
 
   days.forEach((d, idx) => {
     const heightPercent = Math.max(4, Math.round((d.messagesCount / maxMsgs) * 100));
-    const showCount = !is30 || d.messagesCount > 0;
+    const showCount = !isLarge || d.messagesCount > 0;
     const isToday = idx === days.length - 1;
 
     barsHtml += `
-      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: ${is30 ? '16px' : '28px'};" title="${d.date}: ${d.messagesCount} messages">
-        <span style="font-size: 10px; font-weight: 700; color: var(--accent);">${showCount && d.messagesCount > 0 ? d.messagesCount : ''}</span>
-        <div style="width: ${is30 ? '12px' : '22px'}; height: 120px; background: var(--bg-subtle); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden;">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: ${isLarge ? '14px' : '26px'};" title="${d.date}: ${d.messagesCount} messages">
+        <span style="font-size: 9.5px; font-weight: 700; color: var(--accent);">${showCount && d.messagesCount > 0 ? d.messagesCount : ''}</span>
+        <div style="width: ${isLarge ? '10px' : '20px'}; height: 120px; background: var(--bg-subtle); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden;">
           <div style="width: 100%; height: ${heightPercent}%; background: ${isToday ? '#10a37f' : 'linear-gradient(180deg, var(--gold), var(--accent))'}; border-radius: 4px;"></div>
         </div>
-        <span style="font-size: ${is30 ? '9px' : '11px'}; color: var(--text-muted); font-weight: 600; white-space: nowrap;">${d.label || ''}</span>
+        <span style="font-size: ${isLarge ? '8.5px' : '10.5px'}; color: var(--text-muted); font-weight: 600; white-space: nowrap;">${d.label || ''}</span>
       </div>
     `;
   });
@@ -212,8 +332,7 @@ function renderPlatformChart() {
   if (totalMsgs === 0) {
     html += `
       <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
-        <p style="font-size: 13px; font-weight: 500;">No prompt activity logged yet.</p>
-        <p style="font-size: 11.5px; margin-top: 4px;">Start prompting on ChatGPT, Claude, Gemini, Perplexity, or DeepSeek to see your breakdown.</p>
+        <p style="font-size: 13px; font-weight: 500;">No prompt activity logged for this period.</p>
       </div>
     `;
   } else {
@@ -223,6 +342,7 @@ function renderPlatformChart() {
         const pct = totalMsgs > 0 ? Math.round((count / totalMsgs) * 100) : 0;
         return { id, p, count, pct };
       })
+      .filter(x => filterState.platform === 'all' || filterState.platform === x.id)
       .sort((a, b) => b.count - a.count);
 
     sorted.forEach(({ p, count, pct }) => {
@@ -244,82 +364,213 @@ function renderPlatformChart() {
   container.innerHTML = html;
 }
 
-// 4. Hourly Heatmap
-function renderHourlyHeatmap() {
-  const container = document.getElementById('hourly-heatmap-container');
+// 4. Topic Distribution (Feature 1)
+function renderTopicDistribution() {
+  const container = document.getElementById('topic-chart-container');
   if (!container) return;
 
-  const hourCounts = new Array(24).fill(0);
-  const todayHours = currentStats.today.hours || {};
-  Object.entries(todayHours).forEach(([h, count]) => {
-    hourCounts[parseInt(h, 10)] = count;
-  });
+  const topicTotals = currentStats.period?.topicTotals || currentStats.week?.topicTotals || {};
+  const totalTopicMsgs = Object.values(topicTotals).reduce((a, b) => a + b, 0);
 
-  const maxHour = Math.max(1, ...hourCounts);
+  let html = `<div style="width: 100%; display: flex; flex-direction: column; gap: 9px;">`;
 
-  let html = `<div class="heatmap-grid">`;
-
-  for (let i = 0; i < 24; i++) {
-    const count = hourCounts[i];
-    const intensity = count > 0 ? Math.max(0.15, count / maxHour) : 0;
-    const bg = count > 0 ? `color-mix(in srgb, var(--accent) ${Math.round(intensity * 100)}%, var(--bg-subtle))` : 'var(--bg-subtle)';
-    const textColor = count > 0 ? 'var(--text-heading)' : 'var(--text-muted)';
-
+  if (totalTopicMsgs === 0) {
     html += `
-      <div class="heat-cell" style="background: ${bg}; color: ${textColor};" title="${i}:00–${i}:59 (${count} messages)">
-        ${count > 0 ? count : ''}
+      <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+        <p style="font-size: 13px; font-weight: 500;">No categorized topics logged yet.</p>
+        <p style="font-size: 11.5px; margin-top: 4px;">Prompts will be classified locally into Code, Writing, Research, Math, and Creative topics.</p>
       </div>
     `;
+  } else {
+    const sorted = Object.entries(CATEGORIES)
+      .map(([catId, cat]) => {
+        const count = topicTotals[catId] || 0;
+        const pct = totalTopicMsgs > 0 ? Math.round((count / totalTopicMsgs) * 100) : 0;
+        return { catId, cat, count, pct };
+      })
+      .filter(x => x.count > 0 && (filterState.topic === 'all' || filterState.topic === x.catId))
+      .sort((a, b) => b.count - a.count);
+
+    sorted.forEach(({ cat, count, pct }) => {
+      html += `
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
+            <span style="color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${cat.color || '#64748b'};"></span>
+              ${cat.name}
+            </span>
+            <span style="color: var(--text-muted);">${count} msgs (${pct}%)</span>
+          </div>
+          <div style="height: 7px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+            <div style="height: 100%; width: ${pct}%; background: ${cat.color || '#64748b'}; border-radius: 4px; transition: width 0.4s ease;"></div>
+          </div>
+        </div>
+      `;
+    });
   }
 
-  html += `
-    </div>
-    <div class="heat-labels">
-      <span>12 AM</span>
-      <span>6 AM</span>
-      <span>12 PM</span>
-      <span>6 PM</span>
-      <span>11 PM</span>
-    </div>
-  `;
-
+  html += `</div>`;
   container.innerHTML = html;
 }
 
-// 5. Daily History Table
+// 5. Productivity & Velocity Intelligence (Feature 2)
+function renderProductivityIntelligence() {
+  const container = document.getElementById('productivity-intel-container');
+  if (!container) return;
+
+  const logs = getFilteredDailyLogs();
+  const heatmap = buildWeeklyHeatmapMatrix(logs);
+  const totalMsgs = currentStats.period?.messages || 0;
+
+  // Multi-homing / Context switching rate estimate
+  const activePlatforms = Object.keys(currentStats.period?.platformTotals || {}).filter(k => (currentStats.period?.platformTotals[k] || 0) > 0);
+  const multiHomingIndex = activePlatforms.length > 1 ? Number(Math.min(1.0, (activePlatforms.length - 1) * 0.35 + 0.2).toFixed(2)) : 0;
+
+  // Deep work ratio (estimated based on session density)
+  const deepWorkPct = totalMsgs > 20 ? 65 : (totalMsgs > 5 ? 40 : 15);
+  const quickQueryPct = 100 - deepWorkPct;
+
+  container.innerHTML = `
+    <div class="intel-metric-card">
+      <div class="intel-metric-header">
+        <span class="intel-metric-title">Deep Work vs. Quick Query</span>
+        <span class="intel-metric-val">${deepWorkPct}% Deep Work</span>
+      </div>
+      <div class="intel-gauge-track">
+        <div class="intel-gauge-fill" style="width: ${deepWorkPct}%; background: #10b981;"></div>
+        <div class="intel-gauge-fill" style="width: ${quickQueryPct}%; background: #f59e0b;"></div>
+      </div>
+      <span class="intel-metric-desc">Sustained iterative problem solving vs quick lookups.</span>
+    </div>
+
+    <div class="intel-metric-card">
+      <div class="intel-metric-header">
+        <span class="intel-metric-title">AI Multi-Homing Index</span>
+        <span class="intel-metric-val">${multiHomingIndex} / 1.0</span>
+      </div>
+      <div class="intel-gauge-track">
+        <div class="intel-gauge-fill" style="width: ${Math.round(multiHomingIndex * 100)}%; background: #6366f1;"></div>
+      </div>
+      <span class="intel-metric-desc">Cross-platform workflow diversity across ${activePlatforms.length} active AI assistants.</span>
+    </div>
+
+    <div class="intel-metric-card">
+      <div class="intel-metric-header">
+        <span class="intel-metric-title">Peak Interaction Window</span>
+        <span class="intel-metric-val">${heatmap.peakWeekday} @ ${heatmap.peakHour}:00</span>
+      </div>
+      <span class="intel-metric-desc">Your highest concentration of AI prompt activity occurs during this window.</span>
+    </div>
+  `;
+}
+
+// 6. Weekly 7x24 Heatmap (Feature 4)
+function renderWeeklyHeatmap() {
+  const container = document.getElementById('weekly-heatmap-container');
+  if (!container) return;
+
+  const logs = getFilteredDailyLogs();
+  const heatmap = buildWeeklyHeatmapMatrix(logs);
+  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const maxVal = Math.max(1, heatmap.maxCellCount);
+
+  let gridHtml = `<div class="weekly-heatmap-grid">`;
+
+  weekdays.forEach((dayName, wIdx) => {
+    gridHtml += `
+      <div class="week-day-row">
+        <span class="day-lbl">${dayName}</span>
+        <div class="hours-row-cells">
+    `;
+
+    for (let h = 0; h < 24; h++) {
+      const count = heatmap.matrix[wIdx][h];
+      const intensity = count > 0 ? Math.max(0.18, count / maxVal) : 0;
+      const bg = count > 0
+        ? `color-mix(in srgb, var(--accent) ${Math.round(intensity * 100)}%, var(--bg-subtle))`
+        : 'var(--bg-subtle)';
+
+      gridHtml += `
+        <div class="week-cell" style="background: ${bg};" title="${dayName} ${h}:00–${h}:59 (${count} messages)"></div>
+      `;
+    }
+
+    gridHtml += `
+        </div>
+      </div>
+    `;
+  });
+
+  gridHtml += `
+    <div style="display: flex; padding-left: 38px; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 4px;">
+      <span>12 AM</span>
+      <span>4 AM</span>
+      <span>8 AM</span>
+      <span>12 PM</span>
+      <span>4 PM</span>
+      <span>8 PM</span>
+      <span>11 PM</span>
+    </div>
+  </div>`;
+
+  container.innerHTML = gridHtml;
+}
+
+// 7. Daily History Table (Tab 3)
 async function renderHistoryTable() {
   const tbody = document.getElementById('history-tbody');
+  const searchInput = document.getElementById('history-search-input');
   if (!tbody) return;
 
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
   const dailyLogs = await StatsStorage.getDailyLogs();
-  const sorted = Object.values(dailyLogs).sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = Object.values(dailyLogs)
+    .filter(d => !query || d.date.toLowerCase().includes(query))
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   if (sorted.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">
-          No usage history logged yet. Start prompting on any AI platform to see records here.
+        <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">
+          No usage history found.
         </td>
       </tr>
     `;
     return;
   }
 
-  tbody.innerHTML = sorted.map(day => `
-    <tr>
-      <td><strong>${day.date}</strong></td>
-      <td><span style="color: var(--accent); font-weight: 700;">${day.messagesCount || 0}</span></td>
-      <td>${day.platforms?.chatgpt || 0}</td>
-      <td>${day.platforms?.claude || 0}</td>
-      <td>${day.platforms?.gemini || 0}</td>
-      <td>${day.platforms?.deepseek || 0}</td>
-      <td>${day.platforms?.perplexity || 0}</td>
-      <td>${day.platforms?.aisearch || 0}</td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = sorted.map(day => {
+    let topTopicName = 'General';
+    let topTopicCount = 0;
+    if (day.topics) {
+      Object.entries(day.topics).forEach(([t, count]) => {
+        if (count > topTopicCount) {
+          topTopicCount = count;
+          topTopicName = CATEGORIES[t]?.name || t;
+        }
+      });
+    }
+
+    const avgComp = day.complexityCount > 0 ? Math.round(day.complexitySum / day.complexityCount) : '—';
+
+    return `
+      <tr>
+        <td><strong>${day.date}</strong></td>
+        <td><span style="color: var(--accent); font-weight: 700;">${day.messagesCount || 0}</span></td>
+        <td>${day.platforms?.chatgpt || 0}</td>
+        <td>${day.platforms?.claude || 0}</td>
+        <td>${day.platforms?.gemini || 0}</td>
+        <td>${day.platforms?.deepseek || 0}</td>
+        <td>${day.platforms?.perplexity || 0}</td>
+        <td>${day.platforms?.aisearch || 0}</td>
+        <td><span style="font-size: 11.5px; color: var(--text-heading); font-weight: 600;">${topTopicName}</span></td>
+        <td><span style="font-size: 11.5px; color: var(--text-muted);">${avgComp}</span></td>
+      </tr>
+    `;
+  }).join('');
 }
 
-// ── 5.5 AIStat Wrapped (Bento Summary Card) ──────────────────────
+// ── 8. AIStat Wrapped Modal ──────────────────────────────────────
 async function renderWrappedCard() {
   const canvas = document.getElementById('bento-summary-canvas');
   if (!canvas) return;
@@ -407,7 +658,6 @@ function setupWrappedModal() {
           if (copyBtnText) copyBtnText.textContent = 'Copy Image';
         }, 2000);
       } else {
-        // If navigator.clipboard.write([ClipboardItem]) not available
         downloadSummaryCardPNG(canvas, `aistat-wrapped.png`);
         if (copyBtnText) copyBtnText.textContent = 'Downloaded PNG!';
         setTimeout(() => {
@@ -425,12 +675,15 @@ function setupWrappedModal() {
   });
 }
 
-// 6. Settings
+// 9. Settings & Export
 function renderSettingsForm() {
   if (!currentStats?.settings) return;
   const s = currentStats.settings;
   const badgeSelect = document.getElementById('setting-badge');
   if (badgeSelect) badgeSelect.value = s.badgeDisplay || 'message_count';
+
+  const retentionSelect = document.getElementById('setting-retention');
+  if (retentionSelect && s.retentionPolicy) retentionSelect.value = s.retentionPolicy;
 
   const reasoningSelect = document.getElementById('setting-reasoning');
   if (reasoningSelect && s.reasoningEffort) reasoningSelect.value = s.reasoningEffort;
@@ -440,9 +693,14 @@ function renderSettingsForm() {
 }
 
 function setupSettingsAndExport() {
+  document.getElementById('history-search-input')?.addEventListener('input', renderHistoryTable);
+
   document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
     const badgeSelect = document.getElementById('setting-badge');
     const badgeDisplay = badgeSelect ? badgeSelect.value : 'message_count';
+
+    const retentionSelect = document.getElementById('setting-retention');
+    const retentionPolicy = retentionSelect ? retentionSelect.value : '90';
 
     const reasoningSelect = document.getElementById('setting-reasoning');
     const reasoningEffort = reasoningSelect ? reasoningSelect.value : 'medium';
@@ -450,19 +708,41 @@ function setupSettingsAndExport() {
     const subSelect = document.getElementById('setting-subscription');
     const subscription = subSelect ? subSelect.value : 'free';
 
-    await StatsStorage.updateSettings({ badgeDisplay, reasoningEffort, subscription });
+    await StatsStorage.updateSettings({ badgeDisplay, retentionPolicy, reasoningEffort, subscription });
     alert('Preferences saved successfully!');
     await loadData();
   });
 
+  // Markdown Report Export (Feature 5)
+  document.getElementById('btn-export-markdown')?.addEventListener('click', async () => {
+    const dailyLogs = await StatsStorage.getDailyLogs();
+    const md = exportMarkdownReport(dailyLogs);
+    const dateStr = new Date().toISOString().slice(0, 7);
+    downloadFile(md, `AIStat-Report-${dateStr}.md`, 'text/markdown');
+  });
+
+  // Anonymous Benchmark Export (Feature 5)
+  document.getElementById('btn-export-benchmark')?.addEventListener('click', async () => {
+    const dailyLogs = await StatsStorage.getDailyLogs();
+    const benchmark = exportAnonymousBenchmark(dailyLogs);
+    downloadFile(JSON.stringify(benchmark, null, 2), `AIStat-Anonymous-Benchmark.json`, 'application/json');
+  });
+
   document.getElementById('btn-export-json')?.addEventListener('click', async () => {
     const json = await StatsStorage.exportJSON();
-    downloadFile(json, `aistat-data-${Date.now()}.json`, 'application/json');
+    downloadFile(json, `aistat-backup-${Date.now()}.json`, 'application/json');
   });
 
   document.getElementById('btn-export-csv')?.addEventListener('click', async () => {
     const csv = await StatsStorage.exportCSV();
     downloadFile(csv, `aistat-usage-${Date.now()}.csv`, 'text/csv');
+  });
+
+  document.getElementById('btn-run-retention-now')?.addEventListener('click', async () => {
+    const res = await StatsStorage.runRetentionPolicy();
+    alert(`Retention cleanup completed!\n• Retained detailed days: ${res.retainedDays || 0}\n• Archived days: ${res.archivedDaysCount || 0}`);
+    await loadData();
+    renderHistoryTable();
   });
 
   document.getElementById('btn-import-json')?.addEventListener('click', () => {

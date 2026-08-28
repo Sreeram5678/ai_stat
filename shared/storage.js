@@ -1,14 +1,21 @@
 /**
- * AIStat - Storage & Analytics Data Layer
- * Persists all metrics locally in chrome.storage.local.
+ * AIStat - Storage & Analytics Data Layer (Schema v2)
+ * Persists all metrics locally in chrome.storage.local with zero-cloud guarantees.
+ * Supports deterministic migrations, automated retention, topic aggregates, and complexity metrics.
  */
 
-import { globalCache, retryWithBackoff, estimateObjectSize } from './cache-manager.js';
+import { globalCache, estimateObjectSize } from './cache-manager.js';
+import { classifyPrompt } from './topic-categorizer.js';
 
+export const SCHEMA_VERSION = 2;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 let _writeQueue = Promise.resolve();
 
 export class StatsStorage {
+  static get SCHEMA_VERSION() {
+    return SCHEMA_VERSION;
+  }
+
   static getTodayKey() {
     const d = new Date();
     const year = d.getFullYear();
@@ -58,7 +65,16 @@ export class StatsStorage {
       const result = await chrome.storage.local.get('settings');
       settings = result.settings;
     }
-    return { badgeDisplay: 'message_count', theme: 'auto', ...(settings || {}) };
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      badgeDisplay: 'message_count',
+      theme: 'auto',
+      reasoningEffort: 'medium',
+      subscription: 'free',
+      retentionPolicy: '90', // '30' | '90' | '365' | 'disabled'
+      strictPrivacyMode: true,
+      ...(settings || {})
+    };
   }
 
   static async updateSettings(newSettings) {
@@ -68,6 +84,56 @@ export class StatsStorage {
       await chrome.storage.local.set({ settings: updated });
     }
     return updated;
+  }
+
+  /**
+   * Deterministic and idempotent v1 -> v2 schema migration.
+   */
+  static async migrateSchema() {
+    let data = {};
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      data = await chrome.storage.local.get(null);
+    }
+
+    const currentSettings = data.settings || {};
+    const currentVersion = currentSettings.schemaVersion || 1;
+
+    if (currentVersion >= SCHEMA_VERSION && data.dailyLogs) {
+      return { migrated: false, currentVersion: SCHEMA_VERSION };
+    }
+
+    const rawLogs = data.dailyLogs || {};
+    const migratedLogs = {};
+
+    Object.entries(rawLogs).forEach(([dateKey, day]) => {
+      if (FORBIDDEN_KEYS.has(dateKey) || !this.isValidDateKey(dateKey)) return;
+
+      migratedLogs[dateKey] = {
+        date: dateKey,
+        messagesCount: this.sanitizeCount(day.messagesCount),
+        platforms: { ...(day.platforms || {}) },
+        hours: { ...(day.hours || {}) },
+        topics: { ...(day.topics || {}) },
+        models: { ...(day.models || {}) },
+        complexitySum: typeof day.complexitySum === 'number' ? day.complexitySum : 0,
+        complexityCount: typeof day.complexityCount === 'number' ? day.complexityCount : 0
+      };
+    });
+
+    const updatedSettings = {
+      ...currentSettings,
+      schemaVersion: SCHEMA_VERSION,
+      retentionPolicy: currentSettings.retentionPolicy || '90'
+    };
+
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await chrome.storage.local.set({
+        dailyLogs: migratedLogs,
+        settings: updatedSettings
+      });
+    }
+
+    return { migrated: true, fromVersion: currentVersion, toVersion: SCHEMA_VERSION, recordsCount: Object.keys(migratedLogs).length };
   }
 
   static async getDailyLogs() {
@@ -90,6 +156,7 @@ export class StatsStorage {
           platforms: {},
           hours: {}
         };
+
         if (day.platforms && typeof day.platforms === 'object') {
           Object.keys(day.platforms).forEach(p => {
             if (!FORBIDDEN_KEYS.has(p)) {
@@ -97,6 +164,7 @@ export class StatsStorage {
             }
           });
         }
+
         if (day.hours && typeof day.hours === 'object') {
           Object.keys(day.hours).forEach(h => {
             if (!FORBIDDEN_KEYS.has(h)) {
@@ -104,11 +172,47 @@ export class StatsStorage {
             }
           });
         }
+
+        if (day.topics && typeof day.topics === 'object') {
+          cleanDay.topics = {};
+          Object.keys(day.topics).forEach(t => {
+            if (!FORBIDDEN_KEYS.has(t)) {
+              cleanDay.topics[t] = this.sanitizeCount(day.topics[t]);
+            }
+          });
+        }
+
+        if (day.models && typeof day.models === 'object') {
+          cleanDay.models = {};
+          Object.keys(day.models).forEach(m => {
+            if (!FORBIDDEN_KEYS.has(m)) {
+              cleanDay.models[m] = this.sanitizeCount(day.models[m]);
+            }
+          });
+        }
+
+        if (typeof day.complexitySum === 'number') {
+          cleanDay.complexitySum = day.complexitySum;
+        }
+
+        if (typeof day.complexityCount === 'number') {
+          cleanDay.complexityCount = day.complexityCount;
+        }
+
         cleanLogs[dateKey] = cleanDay;
       }
     });
 
     return cleanLogs;
+  }
+
+  static async getMonthlyAggregates() {
+    let monthlyAggregates = {};
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const result = await chrome.storage.local.get('monthlyAggregates');
+      monthlyAggregates = result.monthlyAggregates || {};
+    }
+    return monthlyAggregates;
   }
 
   /**
@@ -122,13 +226,38 @@ export class StatsStorage {
   }
 
   /**
-   * Record a single prompt sent on an AI platform
+   * Record a single prompt sent on an AI platform with topic & complexity metadata.
+   * NEVER persists raw prompt text.
    */
-  static async recordPrompt({ platform = 'chatgpt', timestamp } = {}) {
+  static async recordPrompt({
+    platform = 'chatgpt',
+    timestamp,
+    category,
+    complexity,
+    model,
+    text
+  } = {}) {
     const execute = async () => {
       const todayKey = this.getTodayKey();
       const now = timestamp || Date.now();
       const hour = String(new Date(now).getHours());
+
+      // Derive topic and complexity locally if prompt text is passed in memory
+      let promptCategory = category;
+      let promptComplexity = complexity;
+
+      if (!promptCategory && text) {
+        const classification = classifyPrompt(text);
+        promptCategory = classification.category;
+        if (promptComplexity == null) {
+          promptComplexity = classification.complexity;
+        }
+      }
+
+      promptCategory = promptCategory || 'general_other';
+      const complexityVal = typeof promptComplexity === 'number' && !isNaN(promptComplexity)
+        ? Math.min(100, Math.max(0, Math.round(promptComplexity)))
+        : 35; // Default median complexity heuristic
 
       const dailyLogs = await this.getDailyLogs();
 
@@ -137,7 +266,11 @@ export class StatsStorage {
           date: todayKey,
           messagesCount: 0,
           platforms: {},
-          hours: {}
+          hours: {},
+          topics: {},
+          models: {},
+          complexitySum: 0,
+          complexityCount: 0
         };
       }
 
@@ -149,6 +282,17 @@ export class StatsStorage {
 
       if (!day.hours) day.hours = {};
       day.hours[hour] = this.sanitizeCount(day.hours[hour]) + 1;
+
+      if (!day.topics) day.topics = {};
+      day.topics[promptCategory] = this.sanitizeCount(day.topics[promptCategory]) + 1;
+
+      if (model) {
+        if (!day.models) day.models = {};
+        day.models[model] = this.sanitizeCount(day.models[model]) + 1;
+      }
+
+      day.complexitySum = (day.complexitySum || 0) + complexityVal;
+      day.complexityCount = (day.complexityCount || 0) + 1;
 
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
         await chrome.storage.local.set({ dailyLogs });
@@ -173,7 +317,11 @@ export class StatsStorage {
       date: todayKey,
       messagesCount: 0,
       platforms: {},
-      hours: {}
+      hours: {},
+      topics: {},
+      models: {},
+      complexitySum: 0,
+      complexityCount: 0
     };
 
     // Calculate requested period timeline
@@ -181,12 +329,15 @@ export class StatsStorage {
     const timeline = [];
     let periodMessages = 0;
     const periodPlatformTotals = {};
+    const periodTopicTotals = {};
+    let periodComplexitySum = 0;
+    let periodComplexityCount = 0;
 
     for (let i = daysToIterate - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const dayData = dailyLogs[key] || { date: key, messagesCount: 0, platforms: {} };
+      const dayData = dailyLogs[key] || { date: key, messagesCount: 0, platforms: {}, topics: {} };
       const count = this.sanitizeCount(dayData.messagesCount);
 
       timeline.push({
@@ -206,18 +357,30 @@ export class StatsStorage {
           periodPlatformTotals[p] = (periodPlatformTotals[p] || 0) + this.sanitizeCount(pCount);
         });
       }
+
+      if (dayData.topics) {
+        Object.entries(dayData.topics).forEach(([t, tCount]) => {
+          periodTopicTotals[t] = (periodTopicTotals[t] || 0) + this.sanitizeCount(tCount);
+        });
+      }
+
+      if (dayData.complexityCount) {
+        periodComplexitySum += dayData.complexitySum || 0;
+        periodComplexityCount += dayData.complexityCount || 0;
+      }
     }
 
     // Past 7 Days (fixed for week overview)
     let weekMessages = 0;
     const weekPlatformTotals = {};
+    const weekTopicTotals = {};
     const last7Days = [];
 
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const dayData = dailyLogs[key] || { date: key, messagesCount: 0, platforms: {} };
+      const dayData = dailyLogs[key] || { date: key, messagesCount: 0, platforms: {}, topics: {} };
       const count = this.sanitizeCount(dayData.messagesCount);
 
       last7Days.push({
@@ -233,16 +396,28 @@ export class StatsStorage {
           weekPlatformTotals[p] = (weekPlatformTotals[p] || 0) + this.sanitizeCount(pCount);
         });
       }
+
+      if (dayData.topics) {
+        Object.entries(dayData.topics).forEach(([t, tCount]) => {
+          weekTopicTotals[t] = (weekTopicTotals[t] || 0) + this.sanitizeCount(tCount);
+        });
+      }
     }
 
     // All-time totals
     let allTimeMessages = 0;
     const allTimePlatformTotals = {};
+    const allTimeTopicTotals = {};
     Object.values(dailyLogs).forEach(day => {
       allTimeMessages += this.sanitizeCount(day.messagesCount);
       if (day.platforms) {
         Object.entries(day.platforms).forEach(([p, pCount]) => {
           allTimePlatformTotals[p] = (allTimePlatformTotals[p] || 0) + this.sanitizeCount(pCount);
+        });
+      }
+      if (day.topics) {
+        Object.entries(day.topics).forEach(([t, tCount]) => {
+          allTimeTopicTotals[t] = (allTimeTopicTotals[t] || 0) + this.sanitizeCount(tCount);
         });
       }
     });
@@ -256,7 +431,7 @@ export class StatsStorage {
       }
     });
 
-    // Active Streak (consecutive active days)
+    // Active Streak
     let streak = 0;
     const checkDate = new Date();
     while (true) {
@@ -278,29 +453,39 @@ export class StatsStorage {
       }
     }
 
+    const averageComplexity = periodComplexityCount > 0
+      ? Number((periodComplexitySum / periodComplexityCount).toFixed(1))
+      : 0;
+
     return {
       today: {
         messagesCount: this.sanitizeCount(today.messagesCount),
         platforms: today.platforms || {},
-        hours: today.hours || {}
+        hours: today.hours || {},
+        topics: today.topics || {},
+        avgComplexity: today.complexityCount > 0 ? Number((today.complexitySum / today.complexityCount).toFixed(1)) : 0
       },
       week: {
         messages: weekMessages,
         last7Days,
-        platformTotals: weekPlatformTotals
+        platformTotals: weekPlatformTotals,
+        topicTotals: weekTopicTotals
       },
       period: {
         numDays,
         messages: periodMessages,
         timeline,
-        platformTotals: periodPlatformTotals
+        platformTotals: periodPlatformTotals,
+        topicTotals: periodTopicTotals,
+        averageComplexity
       },
       month: {
         messages: monthMessages
       },
       allTime: {
         messages: allTimeMessages,
-        platformTotals: allTimePlatformTotals
+        platformTotals: allTimePlatformTotals,
+        topicTotals: allTimeTopicTotals
       },
       streak,
       settings
@@ -308,22 +493,24 @@ export class StatsStorage {
   }
 
   /**
-   * Generates a timestamped JSON backup object containing version, exportDate, dailyLogs, and settings.
+   * Generates a timestamped JSON backup object containing schema version, exportDate, dailyLogs, monthlyAggregates, and settings.
    */
   static async exportBackup() {
     const dailyLogs = await this.getDailyLogs();
+    const monthlyAggregates = await this.getMonthlyAggregates();
     const settings = await this.getSettings();
     return {
       version: '2.0.0',
+      schemaVersion: SCHEMA_VERSION,
       exportDate: new Date().toISOString(),
       dailyLogs,
+      monthlyAggregates,
       settings
     };
   }
 
   /**
-   * Validates schema, checks structure, validates dates (YYYY-MM-DD), ensures all numeric counts are sanitized non-negative integers.
-   * Returns { valid: boolean, errors: string[], data?: object }
+   * Validates backup format, schema structure, dates, and non-negative counts.
    */
   static validateBackup(jsonStringOrObject) {
     const errors = [];
@@ -341,26 +528,22 @@ export class StatsStorage {
       return { valid: false, errors: ['Backup payload must be a non-null object'] };
     }
 
-    // Check for root prototype injection keys
     for (const key of Object.getOwnPropertyNames(parsed)) {
       if (FORBIDDEN_KEYS.has(key)) {
         errors.push(`Prototype pollution / injection detected with forbidden root key "${key}"`);
       }
     }
 
-    // Check version
     if (!parsed.version || typeof parsed.version !== 'string') {
       errors.push('Missing or invalid "version" string field');
     }
 
-    // Check exportDate (if provided, must be valid date)
     if (parsed.exportDate !== undefined) {
       if (typeof parsed.exportDate !== 'string' || isNaN(Date.parse(parsed.exportDate))) {
         errors.push('Invalid "exportDate" timestamp');
       }
     }
 
-    // Check dailyLogs
     if (!parsed.dailyLogs || typeof parsed.dailyLogs !== 'object' || Array.isArray(parsed.dailyLogs)) {
       errors.push('Missing or invalid "dailyLogs" object');
     }
@@ -390,7 +573,6 @@ export class StatsStorage {
           }
         }
 
-        // Validate messagesCount
         if (typeof day.messagesCount === 'number') {
           if (day.messagesCount < 0 || isNaN(day.messagesCount)) {
             errors.push(`Negative or NaN messagesCount on date "${key}"`);
@@ -408,10 +590,13 @@ export class StatsStorage {
           date: key,
           messagesCount: this.sanitizeCount(day.messagesCount),
           platforms: {},
-          hours: {}
+          hours: {},
+          topics: {},
+          models: {},
+          complexitySum: typeof day.complexitySum === 'number' ? day.complexitySum : 0,
+          complexityCount: typeof day.complexityCount === 'number' ? day.complexityCount : 0
         };
 
-        // Validate platforms
         if (day.platforms !== undefined) {
           if (typeof day.platforms !== 'object' || day.platforms === null || Array.isArray(day.platforms)) {
             errors.push(`Invalid "platforms" object on date "${key}"`);
@@ -435,7 +620,6 @@ export class StatsStorage {
           }
         }
 
-        // Validate hours
         if (day.hours !== undefined) {
           if (typeof day.hours !== 'object' || day.hours === null || Array.isArray(day.hours)) {
             errors.push(`Invalid "hours" object on date "${key}"`);
@@ -463,11 +647,18 @@ export class StatsStorage {
           }
         }
 
+        if (day.topics && typeof day.topics === 'object' && !Array.isArray(day.topics)) {
+          for (const t of Object.getOwnPropertyNames(day.topics)) {
+            if (!FORBIDDEN_KEYS.has(t)) {
+              cleanDay.topics[t] = this.sanitizeCount(day.topics[t]);
+            }
+          }
+        }
+
         sanitizedLogs[key] = cleanDay;
       }
     }
 
-    // Validate settings (optional)
     let sanitizedSettings = undefined;
     if (parsed.settings !== undefined) {
       if (typeof parsed.settings !== 'object' || parsed.settings === null || Array.isArray(parsed.settings)) {
@@ -491,8 +682,10 @@ export class StatsStorage {
       errors: [],
       data: {
         version: String(parsed.version),
+        schemaVersion: parsed.schemaVersion || SCHEMA_VERSION,
         exportDate: parsed.exportDate || new Date().toISOString(),
         dailyLogs: sanitizedLogs,
+        monthlyAggregates: parsed.monthlyAggregates || {},
         ...(sanitizedSettings ? { settings: sanitizedSettings } : {})
       }
     };
@@ -514,7 +707,6 @@ export class StatsStorage {
     if (mode === 'overwrite') {
       finalLogs = { ...importedLogs };
     } else {
-      // Merge mode
       const existingLogs = await this.getDailyLogs();
       finalLogs = { ...existingLogs };
 
@@ -524,44 +716,51 @@ export class StatsStorage {
             date: dateKey,
             messagesCount: this.sanitizeCount(importedDay.messagesCount),
             platforms: { ...(importedDay.platforms || {}) },
-            hours: { ...(importedDay.hours || {}) }
+            hours: { ...(importedDay.hours || {}) },
+            topics: { ...(importedDay.topics || {}) },
+            models: { ...(importedDay.models || {}) },
+            complexitySum: importedDay.complexitySum || 0,
+            complexityCount: importedDay.complexityCount || 0
           };
         } else {
           const existingDay = finalLogs[dateKey];
           const existingCount = this.sanitizeCount(existingDay.messagesCount);
           const importedCount = this.sanitizeCount(importedDay.messagesCount);
 
-          // For duplicate dates, sets messagesCount = Math.max(existing, imported)
           existingDay.messagesCount = Math.max(existingCount, importedCount);
 
-          // Platform counts: Math.max(...)
           const mergedPlatforms = { ...(existingDay.platforms || {}) };
           if (importedDay.platforms) {
             for (const [p, pCount] of Object.entries(importedDay.platforms)) {
-              const eCount = this.sanitizeCount(mergedPlatforms[p]);
-              const iCount = this.sanitizeCount(pCount);
-              mergedPlatforms[p] = Math.max(eCount, iCount);
+              mergedPlatforms[p] = Math.max(this.sanitizeCount(mergedPlatforms[p]), this.sanitizeCount(pCount));
             }
           }
           existingDay.platforms = mergedPlatforms;
 
-          // Hours: Math.max(...)
           const mergedHours = { ...(existingDay.hours || {}) };
           if (importedDay.hours) {
             for (const [h, hCount] of Object.entries(importedDay.hours)) {
-              const eCount = this.sanitizeCount(mergedHours[h]);
-              const iCount = this.sanitizeCount(hCount);
-              mergedHours[h] = Math.max(eCount, iCount);
+              mergedHours[h] = Math.max(this.sanitizeCount(mergedHours[h]), this.sanitizeCount(hCount));
             }
           }
           existingDay.hours = mergedHours;
+
+          const mergedTopics = { ...(existingDay.topics || {}) };
+          if (importedDay.topics) {
+            for (const [t, tCount] of Object.entries(importedDay.topics)) {
+              mergedTopics[t] = Math.max(this.sanitizeCount(mergedTopics[t]), this.sanitizeCount(tCount));
+            }
+          }
+          existingDay.topics = mergedTopics;
         }
       }
     }
 
-    // Persist to chrome.storage.local
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      await chrome.storage.local.set({ dailyLogs: finalLogs });
+      await chrome.storage.local.set({
+        dailyLogs: finalLogs,
+        ...(data.monthlyAggregates ? { monthlyAggregates: data.monthlyAggregates } : {})
+      });
       if (data.settings && mode === 'overwrite') {
         await this.updateSettings(data.settings);
       }
@@ -570,39 +769,43 @@ export class StatsStorage {
     return finalLogs;
   }
 
-  /**
-   * Export all data to JSON string
-   */
   static async exportJSON() {
     const backup = await this.exportBackup();
     return JSON.stringify(backup, null, 2);
   }
 
-  /**
-   * Export daily logs to CSV format
-   */
   static async exportCSV() {
     const dailyLogs = await this.getDailyLogs();
-    const headers = ['Date', 'Total Messages', 'ChatGPT', 'Claude', 'Gemini', 'DeepSeek', 'Perplexity', 'Google AI Search'];
+    const headers = ['Date', 'Total Messages', 'ChatGPT', 'Claude', 'Gemini', 'DeepSeek', 'Perplexity', 'Google AI Search', 'Top Topic'];
     const rows = Object.values(dailyLogs)
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map(day => [
-        day.date,
-        this.sanitizeCount(day.messagesCount),
-        this.sanitizeCount(day.platforms?.chatgpt),
-        this.sanitizeCount(day.platforms?.claude),
-        this.sanitizeCount(day.platforms?.gemini),
-        this.sanitizeCount(day.platforms?.deepseek),
-        this.sanitizeCount(day.platforms?.perplexity),
-        this.sanitizeCount(day.platforms?.aisearch)
-      ]);
+      .map(day => {
+        let topTopic = 'general_other';
+        let topTopicCount = 0;
+        if (day.topics) {
+          Object.entries(day.topics).forEach(([t, c]) => {
+            if (c > topTopicCount) {
+              topTopicCount = c;
+              topTopic = t;
+            }
+          });
+        }
+        return [
+          day.date,
+          this.sanitizeCount(day.messagesCount),
+          this.sanitizeCount(day.platforms?.chatgpt),
+          this.sanitizeCount(day.platforms?.claude),
+          this.sanitizeCount(day.platforms?.gemini),
+          this.sanitizeCount(day.platforms?.deepseek),
+          this.sanitizeCount(day.platforms?.perplexity),
+          this.sanitizeCount(day.platforms?.aisearch),
+          topTopic
+        ];
+      });
 
     return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   }
 
-  /**
-   * Clear all usage stats and reset
-   */
   static async clearAllData() {
     const settings = await this.getSettings();
     globalCache.clear();
@@ -612,18 +815,14 @@ export class StatsStorage {
     }
   }
 
-  /**
-   * Retrieves estimated or actual storage quota usage.
-   */
   static async getStorageUsage() {
     let bytesInUse = 0;
-    const quotaBytes = 5242880; // 5 MB standard chrome.storage.local limit
+    const quotaBytes = 5242880; // 5 MB
 
     if (typeof chrome !== 'undefined' && chrome.storage?.local?.getBytesInUse) {
       try {
         bytesInUse = await chrome.storage.local.getBytesInUse(null);
       } catch (err) {
-        // Fallback estimation
         const dailyLogs = await this.getDailyLogs();
         const settings = await this.getSettings();
         bytesInUse = estimateObjectSize({ dailyLogs, settings });
@@ -651,15 +850,24 @@ export class StatsStorage {
   }
 
   /**
-   * Archives daily log records older than retentionDays into aggregated historical summaries.
+   * Archives detailed daily logs older than retentionDays into monthly summary aggregates.
+   * Retains high-level monthly summaries permanently while freeing daily row quota.
    */
   static async archiveOldLogs(retentionDays = 90) {
+    if (retentionDays === 'disabled' || retentionDays === 0 || retentionDays === Infinity) {
+      return { retainedDays: (await this.getDailyLogs()).length, archivedDaysCount: 0, archivedMessagesCount: 0 };
+    }
+
+    const daysNum = parseInt(retentionDays, 10) || 90;
     const dailyLogs = await this.getDailyLogs();
+    const existingMonthly = await this.getMonthlyAggregates();
+
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+    cutoffDate.setDate(cutoffDate.getDate() - daysNum);
     const cutoffKey = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
 
     const retainedLogs = {};
+    const updatedMonthly = { ...existingMonthly };
     let archivedMessagesCount = 0;
     const archivedPlatforms = {};
 
@@ -667,17 +875,46 @@ export class StatsStorage {
       if (dateKey >= cutoffKey) {
         retainedLogs[dateKey] = day;
       } else {
-        archivedMessagesCount += this.sanitizeCount(day.messagesCount);
+        const count = this.sanitizeCount(day.messagesCount);
+        archivedMessagesCount += count;
+
+        const monthKey = dateKey.substring(0, 7); // YYYY-MM
+        if (!updatedMonthly[monthKey]) {
+          updatedMonthly[monthKey] = {
+            period: monthKey,
+            messagesCount: 0,
+            platforms: {},
+            topics: {},
+            activeDays: 0
+          };
+        }
+
+        const m = updatedMonthly[monthKey];
+        m.messagesCount += count;
+        if (count > 0) m.activeDays = (m.activeDays || 0) + 1;
+
         if (day.platforms) {
-          Object.entries(day.platforms).forEach(([p, count]) => {
-            archivedPlatforms[p] = (archivedPlatforms[p] || 0) + this.sanitizeCount(count);
+          Object.entries(day.platforms).forEach(([p, pCount]) => {
+            const pVal = this.sanitizeCount(pCount);
+            archivedPlatforms[p] = (archivedPlatforms[p] || 0) + pVal;
+            m.platforms[p] = (m.platforms[p] || 0) + pVal;
+          });
+        }
+
+        if (day.topics) {
+          Object.entries(day.topics).forEach(([t, tCount]) => {
+            const tVal = this.sanitizeCount(tCount);
+            m.topics[t] = (m.topics[t] || 0) + tVal;
           });
         }
       }
     });
 
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      await chrome.storage.local.set({ dailyLogs: retainedLogs });
+      await chrome.storage.local.set({
+        dailyLogs: retainedLogs,
+        monthlyAggregates: updatedMonthly
+      });
     }
     globalCache.clear();
 
@@ -685,7 +922,23 @@ export class StatsStorage {
       retainedDays: Object.keys(retainedLogs).length,
       archivedDaysCount: Object.keys(dailyLogs).length - Object.keys(retainedLogs).length,
       archivedMessagesCount,
-      archivedPlatforms
+      archivedPlatforms,
+      monthlySummariesCount: Object.keys(updatedMonthly).length
     };
   }
+
+  /**
+   * Evaluates user settings and runs automated retention cleanup if enabled.
+   */
+  static async runRetentionPolicy() {
+    const settings = await this.getSettings();
+    const policy = settings.retentionPolicy || '90';
+    if (policy === 'disabled') {
+      return { skipped: true, reason: 'retention_disabled' };
+    }
+    const days = parseInt(policy, 10) || 90;
+    return this.archiveOldLogs(days);
+  }
 }
+
+export default StatsStorage;

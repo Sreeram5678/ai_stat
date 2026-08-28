@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIStat — AI Usage Analytics</title>
+  <title>AIStat — AI Usage Analytics &amp; Productivity Intelligence</title>
 
   <!-- Google Fonts: DM Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,13 +23,16 @@
         </div>
         <div class="brand-titles">
           <h1>AIStat</h1>
-          <span class="tagline">AI Usage Tracker</span>
+          <span class="tagline">Analytics &amp; Intelligence</span>
         </div>
       </div>
 
       <nav class="nav-menu">
         <button class="nav-item active" data-tab="overview">
           <i data-lucide="bar-chart-2" class="nav-icon-svg"></i> Overview &amp; Trends
+        </button>
+        <button class="nav-item" data-tab="arbitrage">
+          <i data-lucide="calculator" class="nav-icon-svg"></i> Model Arbitrage &amp; ROI
         </button>
         <button class="nav-item" data-tab="history">
           <i data-lucide="scroll-text" class="nav-icon-svg"></i> Daily History
@@ -44,7 +47,7 @@
           <i data-lucide="lock" class="icon-xs"></i>
           <span>100% Local &amp; Private</span>
         </div>
-        <span class="version-text">v2.0.0 · Manifest V3</span>
+        <span class="version-text">v2.0.0 · Schema v2 · MV3</span>
       </div>
     </aside>
 
@@ -55,13 +58,14 @@
       <header class="top-bar">
         <div class="page-title-wrap">
           <h2 id="page-heading">Usage Overview</h2>
-          <p id="page-subheading">How many messages you have sent to AI assistants.</p>
+          <p id="page-subheading">Personal AI analytics, velocity metrics, topic categorization, and cost arbitrage.</p>
         </div>
 
         <div class="top-controls">
           <div class="date-filter-group">
             <button class="filter-btn active" data-period="7d">Last 7 Days</button>
             <button class="filter-btn" data-period="30d">Last 30 Days</button>
+            <button class="filter-btn" data-period="90d">Last 90 Days</button>
             <button class="filter-btn" data-period="all">All Time</button>
           </div>
           <button id="btn-open-wrapped" class="btn-primary" title="AIStat Wrapped Weekly Bento Card">
@@ -77,6 +81,56 @@
 
       <!-- ══ TAB 1: OVERVIEW ══ -->
       <div id="tab-overview" class="tab-pane active">
+
+        <!-- Composable Dimension Filter Bar -->
+        <div class="card filter-bar-card">
+          <div class="filter-bar-header">
+            <div class="filter-bar-title">
+              <i data-lucide="sliders-horizontal" class="icon-sm"></i>
+              <span>Analytics Filters</span>
+            </div>
+            <button id="btn-reset-filters" class="filter-reset-btn">Reset Filters</button>
+          </div>
+          <div class="filter-controls-row">
+            <div class="filter-item">
+              <label class="filter-label">Platform:</label>
+              <select id="filter-platform" class="select-input-sm">
+                <option value="all">All Platforms</option>
+                <option value="chatgpt">ChatGPT</option>
+                <option value="claude">Claude</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="perplexity">Perplexity</option>
+                <option value="aisearch">Google AI Search</option>
+              </select>
+            </div>
+
+            <div class="filter-item">
+              <label class="filter-label">Topic / Category:</label>
+              <select id="filter-topic" class="select-input-sm">
+                <option value="all">All Topics</option>
+                <option value="code_debugging">Code / Debugging</option>
+                <option value="writing_editing">Writing / Editing</option>
+                <option value="research_analysis">Research / Analysis</option>
+                <option value="math_logic">Mathematics / Logic</option>
+                <option value="creative_brainstorming">Brainstorming / Creative</option>
+                <option value="career_professional">Career / Professional</option>
+                <option value="learning_education">Learning / Education</option>
+                <option value="general_other">General / Other</option>
+              </select>
+            </div>
+
+            <div class="filter-item">
+              <label class="filter-label">Workstyle / Session:</label>
+              <select id="filter-session" class="select-input-sm">
+                <option value="all">All Workstyles</option>
+                <option value="deep_work">Deep Work Sessions</option>
+                <option value="quick_query">Quick Queries</option>
+                <option value="iterative">Iterative Prompting</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         <!-- Hero KPI Cards -->
         <section class="kpi-grid">
@@ -110,26 +164,26 @@
 
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-title">This Month</span>
-              <i data-lucide="calendar-days" class="kpi-icon-svg"></i>
+              <span class="kpi-title">Prompt Velocity</span>
+              <i data-lucide="zap" class="kpi-icon-svg"></i>
             </div>
             <div class="kpi-main">
-              <span class="kpi-val" id="kpi-month">0</span>
-              <span class="kpi-unit">messages</span>
+              <span class="kpi-val" id="kpi-velocity">0.0</span>
+              <span class="kpi-unit">msgs/active hr</span>
             </div>
             <div class="kpi-footer">
-              <span id="kpi-month-sub">current month</span>
+              <span id="kpi-turnaround-sub">median turnaround: ~45s</span>
             </div>
           </div>
 
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-title">All Time</span>
-              <i data-lucide="trophy" class="kpi-icon-svg"></i>
+              <span class="kpi-title">Avg Complexity</span>
+              <i data-lucide="brain-circuit" class="kpi-icon-svg"></i>
             </div>
             <div class="kpi-main">
-              <span class="kpi-val" id="kpi-alltime">0</span>
-              <span class="kpi-unit">messages</span>
+              <span class="kpi-val" id="kpi-complexity">0</span>
+              <span class="kpi-unit">/ 100</span>
             </div>
             <div class="kpi-footer">
               <span id="kpi-top-platform">— most used</span>
@@ -137,7 +191,7 @@
           </div>
         </section>
 
-        <!-- Charts Section -->
+        <!-- Charts Section: Daily Activity & Platform Breakdown -->
         <div class="dashboard-grid-2col">
           <div class="card chart-card">
             <div class="card-header">
@@ -160,26 +214,63 @@
           </div>
         </div>
 
-        <!-- Hourly Heatmap -->
+        <!-- 2nd Row Charts: Topic Distribution & Productivity Intelligence -->
+        <div class="dashboard-grid-2col">
+          <div class="card chart-card">
+            <div class="card-header">
+              <div>
+                <h3>Topic &amp; Semantic Categorization</h3>
+                <span class="card-subtitle">Local heuristic classification of prompt domains</span>
+              </div>
+            </div>
+            <div class="chart-container" id="topic-chart-container"></div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="card-header">
+              <div>
+                <h3>Productivity &amp; Velocity Intelligence</h3>
+                <span class="card-subtitle">Multi-homing index, deep work ratios, and turnaround times</span>
+              </div>
+            </div>
+            <div class="productivity-intel-container" id="productivity-intel-container"></div>
+          </div>
+        </div>
+
+        <!-- Weekly 7x24 Interaction Intensity Heatmap -->
         <div class="card">
-          <div class="card-header">
+          <div class="card-header flex-between">
             <div>
-              <h3>Peak AI Hours</h3>
-              <span class="card-subtitle">What time of day you use AI most (today)</span>
+              <h3>Weekly Interaction Intensity Heatmap (7 Days × 24 Hours)</h3>
+              <span class="card-subtitle">Normalized prompt density across weekdays and hours of the day</span>
+            </div>
+            <div class="heatmap-legend">
+              <span class="legend-lbl">Less</span>
+              <span class="legend-box" style="background: var(--bg-subtle);"></span>
+              <span class="legend-box" style="background: rgba(212, 117, 42, 0.25);"></span>
+              <span class="legend-box" style="background: rgba(212, 117, 42, 0.60);"></span>
+              <span class="legend-box" style="background: var(--accent);"></span>
+              <span class="legend-lbl">More</span>
             </div>
           </div>
-          <div class="heatmap-container" id="hourly-heatmap-container"></div>
+          <div class="weekly-heatmap-wrapper" id="weekly-heatmap-container"></div>
         </div>
       </div>
 
-      <!-- ══ TAB 2: DAILY HISTORY ══ -->
+      <!-- ══ TAB 2: ARBITRAGE & ROI SIMULATOR ══ -->
+      <div id="tab-arbitrage" class="tab-pane">
+        <div id="roi-simulator-container"></div>
+      </div>
+
+      <!-- ══ TAB 3: DAILY HISTORY ══ -->
       <div id="tab-history" class="tab-pane">
         <div class="card">
           <div class="card-header flex-between">
             <div>
               <h3>Daily Usage History</h3>
-              <span class="card-subtitle">Message counts broken down by day and platform</span>
+              <span class="card-subtitle">Message counts broken down by day, platform, and primary topic</span>
             </div>
+            <input type="text" id="history-search-input" class="search-input" placeholder="Search by date (YYYY-MM-DD)...">
           </div>
 
           <div class="table-container">
@@ -194,6 +285,8 @@
                   <th>DeepSeek</th>
                   <th>Perplexity</th>
                   <th>AI Search</th>
+                  <th>Primary Topic</th>
+                  <th>Complexity</th>
                 </tr>
               </thead>
               <tbody id="history-tbody"></tbody>
@@ -202,21 +295,21 @@
         </div>
       </div>
 
-      <!-- ══ TAB 3: SETTINGS & EXPORT ══ -->
+      <!-- ══ TAB 4: SETTINGS & EXPORT ══ -->
       <div id="tab-settings" class="tab-pane">
         <div class="dashboard-grid-2col">
           <div class="card">
             <div class="card-header">
               <div>
-                <h3>Preferences</h3>
-                <span class="card-subtitle">Configure extension icon behavior</span>
+                <h3>Preferences &amp; Calibration</h3>
+                <span class="card-subtitle">Configure extension behavior and local intelligence</span>
               </div>
             </div>
             <div class="settings-form">
               <div class="setting-row">
                 <div>
                   <label class="setting-label">Dashboard Theme</label>
-                  <p class="setting-desc">Switch between a clean light mode and a sleek dark mode.</p>
+                  <p class="setting-desc">Switch between a warm coffee light theme and a sleek dark theme.</p>
                 </div>
                 <div class="theme-toggle-group" id="theme-toggle-group" role="group" aria-label="Theme">
                   <button type="button" class="theme-toggle-btn" id="theme-btn-auto" data-theme-choice="auto">
@@ -236,13 +329,26 @@
 
               <div class="setting-row">
                 <div>
+                  <label class="setting-label">Automated Data Retention</label>
+                  <p class="setting-desc">Purge detailed daily records older than the threshold while keeping high-level monthly summaries.</p>
+                </div>
+                <select id="setting-retention" class="select-input">
+                  <option value="30">30 Days (Strict Quota Conservation)</option>
+                  <option value="90" selected>90 Days (Recommended)</option>
+                  <option value="365">365 Days (1 Year)</option>
+                  <option value="disabled">Disabled (Keep All Data)</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <div>
                   <label class="setting-label">Reasoning Effort / Query Complexity</label>
                   <p class="setting-desc">Calibrate token estimation for thinking/reasoning models (o3, Sonnet 5, Gemini Flash Thinking, DeepSeek R1).</p>
                 </div>
                 <select id="setting-reasoning" class="select-input">
                   <option value="low">Low (Direct answers, ~750 tokens/msg)</option>
                   <option value="medium" selected>Medium (Balanced thinking, ~2,000 tokens/msg)</option>
-                  <option value="high">High (Deep research & complex coding, ~5,000 tokens/msg)</option>
+                  <option value="high">High (Deep research &amp; complex coding, ~5,000 tokens/msg)</option>
                 </select>
               </div>
 
@@ -252,8 +358,9 @@
                   <p class="setting-desc">Calculate your plan break-even ROI vs equivalent raw API costs.</p>
                 </div>
                 <select id="setting-subscription" class="select-input">
-                  <option value="free" selected>Free Tier / None</option>
+                  <option value="free" selected>Free Tier / Pay-As-You-Go</option>
                   <option value="chatgpt-plus">ChatGPT Plus ($20/mo)</option>
+                  <option value="chatgpt-pro">ChatGPT Pro ($200/mo)</option>
                   <option value="claude-pro">Claude Pro ($20/mo)</option>
                   <option value="gemini-advanced">Gemini Advanced ($20/mo)</option>
                   <option value="perplexity-pro">Perplexity Pro ($20/mo)</option>
@@ -278,14 +385,22 @@
           <div class="card">
             <div class="card-header">
               <div>
-                <h3>Data Export &amp; Restore</h3>
-                <span class="card-subtitle">Export, backup, or restore your personal usage data</span>
+                <h3>Data Export, Portability &amp; Retention</h3>
+                <span class="card-subtitle">Export privacy-safe reports, backups, or community benchmarks</span>
               </div>
             </div>
             <div class="export-actions">
-              <p class="export-desc">All stats are stored 100% locally on your computer.</p>
+              <p class="export-desc">All telemetry and analytics are stored 100% locally on your machine.</p>
 
               <div class="export-buttons-group">
+                <button id="btn-export-markdown" class="secondary-btn">
+                  <i data-lucide="file-text" class="icon-sm"></i>
+                  <span>Export Markdown Report (AIStat-Report.md)</span>
+                </button>
+                <button id="btn-export-benchmark" class="secondary-btn">
+                  <i data-lucide="share-2" class="icon-sm"></i>
+                  <span>Export Anonymous Benchmark (JSON)</span>
+                </button>
                 <button id="btn-export-json" class="secondary-btn">
                   <i data-lucide="download" class="icon-sm"></i>
                   <span>Export Backup (JSON)</span>
@@ -297,6 +412,10 @@
                 <button id="btn-import-json" class="secondary-btn">
                   <i data-lucide="upload" class="icon-sm"></i>
                   <span>Restore / Import Backup</span>
+                </button>
+                <button id="btn-run-retention-now" class="secondary-btn">
+                  <i data-lucide="archive" class="icon-sm"></i>
+                  <span>Run Retention Cleanup Now</span>
                 </button>
                 <input type="file" id="file-import-json" accept=".json,application/json" style="display:none;">
               </div>

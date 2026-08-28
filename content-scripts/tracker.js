@@ -2,6 +2,7 @@
  * AIStat - Universal AI Message Counter (Content Script)
  * Runs in the isolated extension world (top window only).
  * Combines network interception with real-time UI event capture.
+ * Locally extracts derived topic and complexity metadata without sending or persisting raw text.
  */
 
 (function () {
@@ -65,6 +66,51 @@
     }
   }
 
+  // Lightweight local heuristic classifier
+  function extractLocalTopicAndComplexity(rawText = '') {
+    if (!rawText || typeof rawText !== 'string') {
+      return { category: 'general_other', complexity: 25 };
+    }
+
+    const lower = rawText.toLowerCase().trim();
+    const words = lower.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+
+    // Code
+    const hasCode = /```[\s\S]*?```|`[^`]+`|\b(function|def|const|let|var|class|import|return|console\.log|print\(|sql|query|endpoint|debug|bug|refactor)\b/.test(lower);
+    // Math
+    const hasMath = /[∑∫∏√πθλ∞≈≠≤≥±]|\b(integral|derivative|matrix|calculus|equation|solve for|theorem|proof)\b/.test(lower);
+    // Writing
+    const hasWriting = /\b(rewrite|proofread|essay|article|grammar|paraphrase|draft|tone of voice|synonym)\b/.test(lower);
+    // Research
+    const hasResearch = /\b(summarize|summary|literature|compare and contrast|pros and cons|market analysis|findings)\b/.test(lower);
+    // Career
+    const hasCareer = /\b(resume|cover letter|interview|linkedin|job application|salary negotiation|manager)\b/.test(lower);
+    // Learning
+    const hasLearning = /\b(explain|teach me|how does it work|eli5|study guide|flashcards|tutorial)\b/.test(lower);
+    // Creative
+    const hasCreative = /\b(brainstorm|ideas|concept|name suggestions|story|worldbuilding|creative ideas)\b/.test(lower);
+
+    let category = 'general_other';
+    if (hasCode) category = 'code_debugging';
+    else if (hasMath) category = 'math_logic';
+    else if (hasWriting) category = 'writing_editing';
+    else if (hasResearch) category = 'research_analysis';
+    else if (hasCareer) category = 'career_professional';
+    else if (hasLearning) category = 'learning_education';
+    else if (hasCreative) category = 'creative_brainstorming';
+
+    // Complexity heuristic (0-100)
+    let complexity = Math.min(30, (wordCount / 150) * 30);
+    if (hasCode) complexity += 25;
+    if (hasMath) complexity += 25;
+    if (lower.includes('?')) complexity += 5;
+    if (/\b(please|must|ensure|format|json|step by step|constraints)\b/.test(lower)) complexity += 15;
+    complexity = Math.min(100, Math.max(10, Math.round(complexity)));
+
+    return { category, complexity };
+  }
+
   // Core recording function (debounced 4000ms)
   function recordMessage(source = '') {
     if (!isExtensionValid()) return;
@@ -75,14 +121,20 @@
 
     console.log(`[AIStat] Prompt recorded on ${platformId} (via ${source})`);
 
+    const textToAnalyze = getAnyPromptInputText() || lastKnownText;
+    const { category, complexity } = extractLocalTopicAndComplexity(textToAnalyze);
+
     safeSendMessage({
       type: 'RECORD_PROMPT',
       data: {
         platform: platformId,
-        timestamp: now
+        timestamp: now,
+        category,
+        complexity
       }
     });
 
+    // Immediately discard raw text from memory for strict privacy
     lastKnownText = '';
   }
 
@@ -279,5 +331,3 @@
   }, true);
 
 })();
-
-// [EXPERIMENTAL] Hook for tracking interactive sessions in Claude Artifact views
