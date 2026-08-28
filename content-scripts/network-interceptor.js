@@ -97,7 +97,19 @@
 
     // 6. Google AI Search / AI Overview query endpoints
     if (platformId === 'aisearch') {
-      return url.includes('/async/') || url.includes('/complete/search') || (url.includes('/search') && isPost) || url.includes('batchexecute');
+      const isExcluded = (
+        url.includes('/complete/search') || // Exclude autocomplete search suggestions
+        url.includes('/gen_204') ||
+        url.includes('/log?') ||
+        url.includes('/client_204') ||
+        url.includes('/og/_/js') ||
+        url.includes('batchexecute') // Exclude generic Google account / log syncs
+      );
+      if (isExcluded) return false;
+
+      const isAiOverview = url.includes('/async/genai_') || url.includes('/async/ai_') || url.includes('udm=24') || url.includes('udm=14') || url.includes('aimode=1') || url.includes('/aisearch');
+      const isAiFollowupPost = isPost && (url.includes('/async/') || url.includes('/search')) && (url.includes('ai_overview') || url.includes('arc-srp'));
+      return isAiOverview || isAiFollowupPost;
     }
 
     return false;

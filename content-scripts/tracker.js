@@ -75,13 +75,17 @@
     if (now - lastSentTimestamp < 4000) return;
     lastSentTimestamp = now;
 
+    const text = (lastKnownText || getAnyPromptInputText() || '').trim();
+
     console.log(`[AIStat] Prompt recorded on ${platformId} (via ${source})`);
 
     safeSendMessage({
       type: 'RECORD_PROMPT',
       data: {
         platform: platformId,
-        timestamp: now
+        timestamp: now,
+        queryText: text.slice(0, 150),
+        source
       }
     });
 
@@ -98,6 +102,19 @@
 
   // ── LAYER 2: Text Extraction & Caching ──────────────────────
   function getAnyPromptInputText() {
+    // Google AI Search / Search input or URL param
+    if (platformId === 'aisearch') {
+      const searchBox = document.querySelector('textarea[name="q"], input[name="q"]');
+      if (searchBox) {
+        const txt = (searchBox.value || searchBox.innerText || '').trim();
+        if (txt) return txt;
+      }
+      try {
+        const urlQ = new URLSearchParams(window.location.search).get('q');
+        if (urlQ && urlQ.trim()) return urlQ.trim();
+      } catch (e) {}
+    }
+
     // ChatGPT: #prompt-textarea (ProseMirror contenteditable)
     const chatGptBox = document.getElementById('prompt-textarea');
     if (chatGptBox) {
