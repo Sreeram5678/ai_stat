@@ -101,31 +101,21 @@ describe('Background Service Worker', () => {
     expect(state.backgroundColor).toBe('#ef4444'); // Red cap exceeded
   });
 
-  it('deduplicates identical query submissions on aisearch within 15 seconds', async () => {
-    const query = 'how do quantum computers work';
-
-    // 1. Initial UI Enter key trigger
+  it('authoritatively debounces rapid successive prompts within 4000ms', async () => {
+    // 1. Initial prompt trigger
     const res1 = await handleRuntimeMessage({
       type: 'RECORD_PROMPT',
-      data: { platform: 'aisearch', timestamp: 10000, queryText: query }
+      data: { platform: 'chatgpt' }
     });
     expect(res1.success).toBe(true);
     expect(res1.duplicate).toBeUndefined();
 
-    // 2. Delayed async network fetch on page render (e.g. 6 seconds later > 4000ms debounce)
+    // 2. Immediate duplicate within 4000ms
     const res2 = await handleRuntimeMessage({
       type: 'RECORD_PROMPT',
-      data: { platform: 'aisearch', timestamp: 16000, queryText: query }
+      data: { platform: 'chatgpt' }
     });
     expect(res2.success).toBe(true);
-    expect(res2.duplicate).toBe(true); // Blocked by query text match!
-
-    // 3. New different search query after debounce
-    const res3 = await handleRuntimeMessage({
-      type: 'RECORD_PROMPT',
-      data: { platform: 'aisearch', timestamp: 21000, queryText: 'what is general relativity' }
-    });
-    expect(res3.success).toBe(true);
-    expect(res3.duplicate).toBeUndefined(); // Allowed as new query!
+    expect(res2.duplicate).toBe(true);
   });
 });

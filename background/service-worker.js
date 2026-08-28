@@ -6,9 +6,8 @@ import { StatsStorage } from '../shared/storage.js';
 import { exportMarkdownReport, exportPrometheusMetrics, exportJSONLD, exportFilteredDataset } from '../shared/telemetry-exporter.js';
 import { calculateGoalProgress, checkGoalAlert } from '../shared/goal-manager.js';
 
-// Central locks to prevent duplicate increments across multiple triggers/frames/page navigations
+// Central lock to prevent duplicate increments across multiple triggers/frames
 const platformLastRecordTime = {};
-const platformLastQuery = {};
 
 // Update action badge with today's message count and goal status color
 export async function updateBadge() {
@@ -83,28 +82,16 @@ export async function handleRuntimeMessage(message, sender = {}) {
 
   if (message.type === 'RECORD_PROMPT') {
     const platform = message.data?.platform || 'general';
-    const now = message.data?.timestamp || Date.now();
-    const queryText = (message.data?.queryText || '').trim().toLowerCase();
+    const now = Date.now();
     const lastRecord = platformLastRecordTime[platform] || 0;
-    const lastQuery = platformLastQuery[platform] || '';
 
-    // 1. Same query text deduplication within 15 seconds (prevents UI submit + async fetch + reload duplicates)
-    if (queryText && lastQuery && queryText === lastQuery && (now - lastRecord < 15000)) {
-      console.log(`[AIStat] Blocked duplicate prompt by query match on ${platform}: "${queryText.slice(0, 30)}..."`);
-      return { success: true, duplicate: true };
-    }
-
-    // 2. Central authoritative debounce: exactly 1 message count allowed per 4000ms per platform
+    // Central authoritative debounce: exactly 1 message count allowed per 4000ms per platform
     if (now - lastRecord < 4000) {
       console.log(`[AIStat] Blocked duplicate prompt event on ${platform} (${now - lastRecord}ms gap)`);
       return { success: true, duplicate: true };
     }
 
     platformLastRecordTime[platform] = now;
-    if (queryText) {
-      platformLastQuery[platform] = queryText;
-    }
-
     const result = await StatsStorage.recordPrompt(message.data);
     await updateBadge();
 
@@ -157,9 +144,8 @@ export async function handleRuntimeMessage(message, sender = {}) {
   }
 
   if (message.type === 'RESET_DATA') {
-    // Clear rate-limiting and query caches as well
+    // Clear rate-limiting cache as well
     Object.keys(platformLastRecordTime).forEach(k => delete platformLastRecordTime[k]);
-    Object.keys(platformLastQuery).forEach(k => delete platformLastQuery[k]);
     await StatsStorage.clearAllData();
     await updateBadge();
     return { success: true };

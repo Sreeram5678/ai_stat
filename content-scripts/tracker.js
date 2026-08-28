@@ -24,8 +24,6 @@
     platformId = 'deepseek';
   } else if (host.includes('perplexity.ai')) {
     platformId = 'perplexity';
-  } else if (host.includes('google.com') && (window.location.pathname.includes('/search') || window.location.pathname.includes('/aisearch'))) {
-    platformId = 'aisearch';
   }
 
   console.log(`[AIStat] Content tracker active on ${platformId}`);
@@ -75,17 +73,13 @@
     if (now - lastSentTimestamp < 4000) return;
     lastSentTimestamp = now;
 
-    const text = (lastKnownText || getAnyPromptInputText() || '').trim();
-
     console.log(`[AIStat] Prompt recorded on ${platformId} (via ${source})`);
 
     safeSendMessage({
       type: 'RECORD_PROMPT',
       data: {
         platform: platformId,
-        timestamp: now,
-        queryText: text.slice(0, 150),
-        source
+        timestamp: now
       }
     });
 
@@ -102,19 +96,6 @@
 
   // ── LAYER 2: Text Extraction & Caching ──────────────────────
   function getAnyPromptInputText() {
-    // Google AI Search / Search input or URL param
-    if (platformId === 'aisearch') {
-      const searchBox = document.querySelector('textarea[name="q"], input[name="q"]');
-      if (searchBox) {
-        const txt = (searchBox.value || searchBox.innerText || '').trim();
-        if (txt) return txt;
-      }
-      try {
-        const urlQ = new URLSearchParams(window.location.search).get('q');
-        if (urlQ && urlQ.trim()) return urlQ.trim();
-      } catch (e) {}
-    }
-
     // ChatGPT: #prompt-textarea (ProseMirror contenteditable)
     const chatGptBox = document.getElementById('prompt-textarea');
     if (chatGptBox) {
@@ -129,24 +110,24 @@
       if (txt) return txt;
     }
 
-    // Gemini: rich-textarea, role="textbox", .ql-editor
-    const geminiBox = document.querySelector('rich-textarea div[contenteditable="true"], rich-textarea .ql-editor, rich-textarea p, rich-textarea [role="textbox"], rich-textarea');
+    // Gemini: rich-textarea
+    const geminiBox = document.querySelector('rich-textarea div[contenteditable="true"], rich-textarea .ql-editor');
     if (geminiBox) {
-      const txt = (geminiBox.innerText || geminiBox.textContent || geminiBox.value || '').trim();
+      const txt = (geminiBox.innerText || '').trim();
       if (txt) return txt;
     }
 
     // Active Element
     const active = document.activeElement;
     if (active) {
-      const txt = (active.value || active.innerText || active.textContent || '').trim();
+      const txt = (active.value || active.innerText || '').trim();
       if (txt) return txt;
     }
 
     // Universal Textarea / Contenteditable
-    const anyTextarea = document.querySelector('textarea, div[contenteditable="true"], [role="textbox"]');
+    const anyTextarea = document.querySelector('textarea, div[contenteditable="true"]');
     if (anyTextarea) {
-      const txt = (anyTextarea.value || anyTextarea.innerText || anyTextarea.textContent || '').trim();
+      const txt = (anyTextarea.value || anyTextarea.innerText || '').trim();
       if (txt) return txt;
     }
 
@@ -169,8 +150,6 @@
         text = target.value;
       } else if (target.innerText !== undefined) {
         text = target.innerText;
-      } else if (target.textContent !== undefined) {
-        text = target.textContent;
       }
       if (text && text.trim().length > 0) {
         lastKnownText = text.trim();
@@ -185,24 +164,20 @@
 
   function isChatInputElement(el) {
     if (!el) return false;
-    if (platformId === 'aisearch') {
-      if (el.name === 'q' || el.tagName === 'TEXTAREA' || el.isContentEditable || el.getAttribute('contenteditable') === 'true') return true;
-      if (el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'search' || !el.type)) return true;
-    }
     if (el.tagName === 'INPUT' && (el.type === 'search' || el.placeholder?.toLowerCase().includes('search') || el.id?.toLowerCase().includes('search'))) {
       return false;
     }
     if (el.id === 'prompt-textarea' || (el.closest && el.closest('#prompt-textarea'))) return true;
     if (el.tagName === 'TEXTAREA') return true;
     if (el.tagName === 'INPUT' && (el.type === 'text' || !el.type)) return true;
-    if (el.isContentEditable || el.getAttribute('contenteditable') === 'true' || el.getAttribute('role') === 'textbox') return true;
-    if (el.closest && el.closest('#prompt-textarea, rich-textarea, .ProseMirror, [contenteditable="true"], [role="textbox"]')) return true;
+    if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') return true;
+    if (el.closest && el.closest('#prompt-textarea, rich-textarea, .ProseMirror, [contenteditable="true"]')) return true;
     return false;
   }
 
   function isSendButton(el) {
     if (!el) return false;
-    const btn = el.closest('button, [role="button"], [type="submit"], .send-button, .mat-mdc-icon-button');
+    const btn = el.closest('button, [role="button"], [type="submit"]');
     if (!btn) return false;
 
     const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
@@ -210,15 +185,17 @@
     const id = (btn.id || '').toLowerCase();
     const className = (btn.className || '').toLowerCase();
     const jsname = (btn.getAttribute('jsname') || '').toLowerCase();
-    const text = (btn.innerText || btn.textContent || '').toLowerCase().trim();
+    const text = (btn.innerText || '').toLowerCase().trim();
 
     const isExplicitSend = (
       ariaLabel.includes('send') ||
       ariaLabel.includes('submit') ||
       testId.includes('send') ||
       testId.includes('submit') ||
-      id.includes('send') ||
-      className.includes('send') ||
+      id.includes('send-button') ||
+      id === 'send' ||
+      className.includes('send-button') ||
+      className.includes('submit-button') ||
       jsname.includes('send') ||
       text === 'send' ||
       text === 'submit' ||
@@ -251,43 +228,53 @@
     try {
       if (!isExtensionValid()) return;
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-        const path = e.composedPath ? e.composedPath() : [e.target];
-        let isInput = isChatInputElement(e.target) || isChatInputElement(document.activeElement);
-        if (!isInput) {
-          for (const el of path) {
-            if (el && el.nodeType === 1 && isChatInputElement(el)) {
-              isInput = true;
-              break;
-            }
+        const target = e.target;
+        if (isChatInputElement(target) || isChatInputElement(document.activeElement)) {
+          const currentText = getAnyPromptInputText() || (target?.value || target?.innerText || '').trim();
+          const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
+          if (currentText.length > 0 || hasRecentText) {
+            recordMessage('enter_key');
           }
-        }
-        if (isInput) {
-          recordMessage('enter_key');
         }
       }
     } catch (err) {}
   }, true);
 
-  function handleSendAction(e, src) {
+  // Capture text on pointerdown before React / Svelte clears it on click
+  window.addEventListener('pointerdown', (e) => {
     try {
       if (!isExtensionValid()) return;
-      const path = e.composedPath ? e.composedPath() : [e.target];
-      for (const el of path) {
-        if (el && el.nodeType === 1 && isSendButton(el)) {
-          recordMessage(src);
-          break;
+      if (isSendButton(e.target)) {
+        const currentText = getAnyPromptInputText();
+        const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
+        if (currentText.length > 0 || hasRecentText) {
+          recordMessage('send_button_pointerdown');
         }
       }
     } catch (err) {}
-  }
+  }, true);
 
-  // Pointerdown captures early before React/Svelte mutates DOM
-  window.addEventListener('pointerdown', (e) => handleSendAction(e, 'send_button_pointerdown'), true);
-  window.addEventListener('click', (e) => handleSendAction(e, 'send_button_click'), true);
+  window.addEventListener('click', (e) => {
+    try {
+      if (!isExtensionValid()) return;
+      if (isSendButton(e.target)) {
+        const currentText = getAnyPromptInputText();
+        const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
+        if (currentText.length > 0 || hasRecentText) {
+          recordMessage('send_button_click');
+        }
+      }
+    } catch (err) {}
+  }, true);
+
   window.addEventListener('submit', () => {
     try {
       if (!isExtensionValid()) return;
-      recordMessage('form_submit');
+      const currentText = getAnyPromptInputText();
+      const hasRecentText = (lastKnownText.length > 0 && (Date.now() - lastTextTime < 300000));
+      if (currentText.length > 0 || hasRecentText) {
+        recordMessage('form_submit');
+      }
     } catch (err) {}
   }, true);
 
